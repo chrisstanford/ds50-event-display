@@ -1,0 +1,1106 @@
+// display
+#include "./EventDisplay.hh"
+
+namespace display {
+  EventDisplay::EventDisplay(std::string filepath1, std::string filepath2) :
+    TEveManager(1024,768,kTRUE,"FIV"),							    
+    tpc_enabled(false),
+    lsv_enabled(false),
+    wt_enabled(false),
+    tpc_geo_enabled(false),
+    lsv_geo_enabled(false),
+    wt_geo_enabled(false)
+  {
+    //      std::cout<<"Please ignore libGL errors."<<std::endl;
+    LoadFile(filepath1,filepath2);
+  }
+
+  ///////////////////////////////////////
+  /////////// Initialization ////////////
+  ///////////////////////////////////////
+
+  //________________________________________________________________________________________
+  void EventDisplay::LoadFile(std::string filepath1, std::string filepath2) {
+    // Get trees from files
+    TTree* t;
+    f1 = TFile::Open(filepath1.c_str());
+    f1->GetObject("display/tpc_settings_tree",t);
+    if (t) tpc_settings_tree = t;
+    f1->GetObject("display/tpc_display_tree",t);
+    if (t) tpc_display_tree = t; 
+    f1->GetObject("display/od_settings_tree",t);
+    if (t) od_settings_tree = t;
+    f1->GetObject("display/od_display_tree",t);
+    if (t) od_display_tree = t; 
+    //    f1->Close();
+    if (filepath2!="") {
+      f2 = TFile::Open(filepath2.c_str());
+      f2->GetObject("display/tpc_settings_tree",t);
+      if (t) {
+       	if (tpc_settings_tree)
+	  std::cout<<"Warning: Duplicate TPC trees. Overriding first tree."<<std::endl;
+	tpc_settings_tree = t;
+      }
+      f2->GetObject("display/tpc_display_tree",t);
+      if (t) {
+	if (tpc_display_tree)
+	  std::cout<<"Warning: Duplicate TPC trees. Overriding first tree."<<std::endl;
+	tpc_display_tree = t; 
+      }
+      f2->GetObject("display/od_settings_tree",t);
+      if (t) {
+	if (od_settings_tree) 
+	  std::cout<<"Warning: Duplicate OD trees. Overriding first tree."<<std::endl;
+	od_settings_tree = t;
+      }
+      f2->GetObject("display/od_display_tree",t);
+      if (t) {
+	if (od_display_tree) 
+	  std::cout<<"Warning: Duplicate OD trees. Overriding first tree."<<std::endl;
+	od_display_tree = t;
+      } 
+      //      f2->Close();
+    }    
+
+    if (tpc_settings_tree/*->GetEntries()*/) {
+      tpc_settings_tree->SetBranchAddress("tpc_enabled",    &tpc_enabled);
+      tpc_settings_tree->SetBranchAddress("tpc_geo_enabled",&tpc_geo_enabled);
+      tpc_settings_tree->GetEntry(0);
+    }
+    std::cout<<"TPC enabled: "         <<tpc_enabled    <<std::endl;
+    std::cout<<"TPC geometry enabled: "<<tpc_geo_enabled<<std::endl;
+    // Load TPC data
+    if (tpc_display_tree/*->GetEntries()*/) {
+      tpc_display_tree->SetBranchAddress("tpc_run_id",     &tpc_run_id);
+      tpc_display_tree->SetBranchAddress("tpc_event_id",   &tpc_event_id);
+      tpc_display_tree->SetBranchAddress("tpc_sum",        &tpc_sum);
+      tpc_display_tree->SetBranchAddress("tpc_chan",       &tpc_chan);
+      tpc_display_tree->SetBranchAddress("tpc_pulse_tree", &tpc_pulse_tree);
+      tpc_display_tree->SetBranchAddress("tpc_spe_tree",   &tpc_spe_tree);
+    }
+    // Load OD settings
+    if (od_settings_tree/*->GetEntries()*/) {
+      od_settings_tree->SetBranchAddress("lsv_enabled",    &lsv_enabled);
+      od_settings_tree->SetBranchAddress("wt_enabled",     &wt_enabled);
+      od_settings_tree->SetBranchAddress("lsv_geo_enabled",&lsv_geo_enabled);
+      od_settings_tree->SetBranchAddress("wt_geo_enabled", &wt_geo_enabled);
+      od_settings_tree->GetEntry(0);
+    }
+    std::cout<<"LSV enabled: "         <<lsv_enabled    <<std::endl;
+    std::cout<<"WT enabled: "          <<wt_enabled     <<std::endl;
+    std::cout<<"LSV geometry enabled: "<<lsv_geo_enabled<<std::endl;
+    std::cout<<"WT geometry enabled: " <<wt_geo_enabled <<std::endl;
+    // Load OD data
+    if (od_display_tree/*->GetEntries()*/) {
+      od_display_tree->SetBranchAddress("od_run_id",      &od_run_id);
+      od_display_tree->SetBranchAddress("od_event_id",    &od_event_id);
+      od_display_tree->SetBranchAddress("lsv_ampl_sum",   &lsv_ampl_sum);
+      od_display_tree->SetBranchAddress("lsv_ampl_chan",  &lsv_ampl_chan);
+      od_display_tree->SetBranchAddress("lsv_disc_sum",   &lsv_disc_sum);
+      od_display_tree->SetBranchAddress("lsv_disc_chan",  &lsv_disc_chan);
+      od_display_tree->SetBranchAddress("wt_ampl_sum",    &wt_ampl_sum);
+      od_display_tree->SetBranchAddress("wt_ampl_chan",   &wt_ampl_chan);
+      od_display_tree->SetBranchAddress("wt_disc_sum",    &wt_disc_sum);
+      od_display_tree->SetBranchAddress("wt_disc_chan",   &wt_disc_chan);
+      od_display_tree->SetBranchAddress("lsv_cluster_tree",&lsv_cluster_tree);
+      od_display_tree->SetBranchAddress("lsv_roi_tree",    &lsv_roi_tree);
+    }
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::LoadEvent(int id) {
+    std::cout<<"Loading event."<<std::endl;
+    // Initialize main window title
+    std::ostringstream os;
+    // Load TPC event
+    if (tpc_enabled) {
+      // Check if event exists
+      if (id >= tpc_display_tree->GetEntries()) {
+	std::cout<<"No next TPC event."<<std::endl;
+	return;
+      }
+      if (id < 0) {
+	std::cout<<"No previous TPC event."<<std::endl;
+	return;
+      }
+      // Clear structures from previous event
+      for (int i=0;i<tpc_pulse_vec.size();++i) delete tpc_pulse_vec.at(i);
+      for (int i=0;i<tpc_spe_vec.size();++i) delete tpc_spe_vec.at(i);
+      tpc_pulse_vec.clear();      
+      tpc_spe_vec.clear();      
+      // Get event from tree
+      tpc_display_tree->GetEntry(id);
+      current_event_id=id;
+      // Fill title
+      os<<"tpc r"<<std::setw(6)<<std::setfill('0')<<tpc_run_id
+	<<"e"<<std::setw(6)<<std::setfill('0')<<tpc_event_id<<" ";
+      // Set Channel Colors
+      display::SetChannelColors("tpc",tpc_chan);
+      // Load TPC Pulses
+      {
+	const int N_pulses = tpc_pulse_tree->GetEntries();
+	std::cout<<"Found "<<N_pulses<<" TPC pulses.\n";
+	int channel;
+	double start_us;
+	double end_us;
+	double peak_us;
+	double base;
+	double height;
+	tpc_pulse_tree->SetBranchAddress("start_us",&start_us);
+	tpc_pulse_tree->SetBranchAddress("end_us",&end_us);
+	tpc_pulse_tree->SetBranchAddress("peak_us",&peak_us);
+	tpc_pulse_tree->SetBranchAddress("base",&base);
+	tpc_pulse_tree->SetBranchAddress("height",&height);
+	for(int i=0; i<N_pulses; i++) {
+	  tpc_pulse_tree->GetEntry(i);
+	  display::TPCPulse* p = new display::TPCPulse(); 
+	  p->start_us = start_us;
+	  p->end_us   = end_us;
+	  p->peak_us  = peak_us;
+	  p->base     = base;
+	  p->height   = height;
+	  tpc_pulse_vec.push_back(p);
+	}  
+      }
+      // Load SPEs
+      {
+	const int N_spes = tpc_spe_tree->GetEntries();
+	std::cout<<"Found "<<N_spes<<" TPC SPEs.\n";
+	int channel;
+	double start_us;
+	double end_us;
+	double base;
+	double height;
+	tpc_spe_tree->SetBranchAddress("channel",&channel);
+	tpc_spe_tree->SetBranchAddress("start_us",&start_us);
+	tpc_spe_tree->SetBranchAddress("end_us",&end_us);
+	tpc_spe_tree->SetBranchAddress("base",&base);
+	tpc_spe_tree->SetBranchAddress("height",&height);
+	for(int i=0; i<N_spes; i++) {
+	  tpc_spe_tree->GetEntry(i);
+	  display::TPCSPE* s = new display::TPCSPE(); 
+	  s->channel  = channel;
+	  s->start_us = start_us;
+	  s->end_us   = end_us;
+	  s->base     = base;
+	  s->height   = height;
+	  tpc_spe_vec.push_back(s);
+	}  
+      }
+    }
+    // Load OD event
+    if (lsv_enabled||wt_enabled) {
+      // Check if event exists
+      if (id >= od_display_tree->GetEntries()) {
+	std::cout<<"No next OD event."<<std::endl;
+	return;
+      }
+      if (id < 0) {
+	std::cout<<"No previous OD event."<<std::endl;
+	return;
+      }
+      // Clear structures from previous event
+      for (int i=0;i<lsv_cluster_vec.size();++i) delete lsv_cluster_vec.at(i);
+      for (int i=0;i<lsv_roi_vec.size();++i) delete lsv_roi_vec.at(i);
+      lsv_cluster_vec.clear();      
+      lsv_roi_vec.clear();      
+      // Get event from tree
+      od_display_tree->GetEntry(id);
+      current_event_id=id;
+      // Fill title
+      os<<"r"<<std::setw(6)<<std::setfill('0')<<od_run_id
+	<<"e"<<std::setw(6)<<std::setfill('0')<<od_event_id;
+      // Set Channel Colors
+      display::SetChannelColors("lsv",lsv_ampl_chan);
+      display::SetChannelColors("lsv",lsv_disc_chan);
+      display::SetChannelColors("wt",wt_ampl_chan);
+      display::SetChannelColors("wt",wt_disc_chan);      
+      // Load Clusters
+      {
+	const int N_clusters = lsv_cluster_tree->GetEntries();
+	std::cout<<"Found "<<N_clusters<<" LSV clusters.\n";
+	double start_ns;
+	double end_ns;
+	double charge;
+	double height;
+	int max_multiplicity;
+	lsv_cluster_tree->SetBranchAddress("start_ns",&start_ns);
+	lsv_cluster_tree->SetBranchAddress("end_ns",&end_ns);
+	lsv_cluster_tree->SetBranchAddress("charge",&charge);
+	lsv_cluster_tree->SetBranchAddress("height",&height);
+	lsv_cluster_tree->SetBranchAddress("max_multiplicity",&max_multiplicity);      
+	for(int i=0; i<N_clusters; i++) {
+	  lsv_cluster_tree->GetEntry(i);
+	  display::LSVCluster* c = new display::LSVCluster(); 
+	  c->start_ns = start_ns;
+	  c->end_ns   = end_ns;
+	  c->charge   = charge;
+	  c->height   = height;
+	  c->max_multiplicity = max_multiplicity;
+	  lsv_cluster_vec.push_back(c);
+	}  
+      }
+      // Load ROIs
+      {
+	const int N_rois = lsv_roi_tree->GetEntries();
+	std::cout<<"Found "<<N_rois<<" LSV ROIs.\n";
+	double start_ns;
+	double end_ns;
+	double charge;
+	int max_multiplicity;
+	lsv_roi_tree->SetBranchAddress("start_ns",&start_ns);
+	lsv_roi_tree->SetBranchAddress("end_ns",&end_ns);
+	lsv_roi_tree->SetBranchAddress("charge",&charge);
+	lsv_roi_tree->SetBranchAddress("max_multiplicity",&max_multiplicity);      
+	for(int i=0; i<N_rois; i++) {
+	  lsv_roi_tree->GetEntry(i);
+	  display::LSVROI* r = new display::LSVROI(); 
+	  r->start_ns = start_ns;
+	  r->end_ns   = end_ns;
+	  r->charge   = charge;
+	  r->max_multiplicity = max_multiplicity;
+	  lsv_roi_vec.push_back(r);
+	}  
+      }
+    }
+    // Set title
+    std::string title = os.str();
+    GetBrowser()->GetMainFrame()->SetWindowName(title.c_str());
+  }
+  //________________________________________________________________________________________
+  void EventDisplay::Create() {
+    // Load first event in display tree
+    LoadEvent(0);
+    // Create Tabs
+    CreateWaveformTab();
+    CreateOptionsTab();
+    CreateCanvas();
+    CreateGeometry();
+    GetBrowser()->GetTabLeft()->SetTab(2);
+  }
+
+  ///////////////////////////////////////
+  /////////// Waveform Tab //////////////
+  ///////////////////////////////////////
+  //________________________________________________________________________________________
+  void EventDisplay::CreateWaveformTab() {
+    TEveWindowSlot* slot = TEveWindow::CreateWindowInTab(gEve->GetBrowser()->GetTabLeft());
+    tab_waveforms = slot->MakeTab();
+    tab_waveforms->SetElementName("Waveforms");
+    tab_waveforms->SetShowTitleBar(kFALSE);
+    if (tpc_enabled) CreateWaveformTPCTab();
+    if (lsv_enabled) CreateWaveformODTab("lsv");
+    if (wt_enabled)  CreateWaveformODTab("wt");
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::CreateWaveformTPCTab() {
+    std::string detector = "tpc";
+    TMultiGraph* wf_sum  = tpc_sum;
+    TMultiGraph* wf_chan = tpc_chan;
+    TEveWindowSlot* slot = tab_waveforms->NewSlot();
+    TEveWindowFrame* tab_frame = slot->MakeFrame();
+    tab_frame->SetShowTitleBar(kFALSE);
+    TGCompositeFrame* comp_frame = tab_frame->GetGUICompositeFrame();
+    // Waveform box
+    WaveformFrame* wf_frame = new WaveformFrame("Waveforms", wf_sum, wf_chan, comp_frame);
+    wf_frame->button_draw->Connect("Clicked()","display::EventDisplay",this,Form("DrawWaveform(=\"%s\")",detector.c_str()));
+    comp_frame->AddFrame(wf_frame, new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY));
+    // TPC pulse frame
+    TPCPulseFrame* pulse_frame = new TPCPulseFrame(comp_frame);
+    pulse_frame->button_print_info->Connect("Clicked()","display::EventDisplay",this,"PrintTPCPulses()");
+    pulse_frame->button_zoom_axis->Connect("Clicked()","display::EventDisplay",this,"ZoomAxisByTPCPulse()");
+    comp_frame->AddFrame(pulse_frame, new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    // TPC SPE frame
+    TPCSPEFrame* spe_frame = new TPCSPEFrame(comp_frame);
+    comp_frame->AddFrame(spe_frame, new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    // Event selection box
+    EventSelectionFrame* event_selection_frame = new EventSelectionFrame(comp_frame);
+    event_selection_frame->button_next->Connect("Clicked()","display::EventDisplay",this,"NextEvent()");
+    event_selection_frame->button_prev->Connect("Clicked()","display::EventDisplay",this,"PrevEvent()");
+    comp_frame->AddFrame(event_selection_frame,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    // Set globals
+    tpc_wf_frame = wf_frame;
+    tpc_pulse_frame = pulse_frame;
+    tpc_spe_frame = spe_frame;
+    tab_frame->SetElementName("TPC");
+    // Update Layout
+    comp_frame->MapSubwindows();
+    comp_frame->Layout();
+    comp_frame->MapWindow();
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::CreateWaveformODTab(std::string detector) {
+    TMultiGraph* ampl_sum;
+    TMultiGraph* disc_sum;
+    TMultiGraph* ampl_chan;
+    TMultiGraph* disc_chan;
+    if (detector=="lsv") {
+      ampl_sum = lsv_ampl_sum;
+      disc_sum = lsv_disc_sum;
+      ampl_chan = lsv_ampl_chan;
+      disc_chan = lsv_disc_chan;
+    }
+    if (detector=="wt") {
+      ampl_sum = wt_ampl_sum;
+      disc_sum = wt_disc_sum;
+      ampl_chan = wt_ampl_chan;
+      disc_chan = wt_disc_chan;
+    }
+    TEveWindowSlot* slot = tab_waveforms->NewSlot();
+    TEveWindowFrame* tab_frame = slot->MakeFrame();
+    tab_frame->SetShowTitleBar(kFALSE);
+    TGCompositeFrame* comp_frame = tab_frame->GetGUICompositeFrame();
+    // Amplitude waveform box
+    WaveformFrame* ampl_frame = new WaveformFrame("Amplitude", ampl_sum, ampl_chan, comp_frame);
+    ampl_frame->button_draw->Connect("Clicked()","display::EventDisplay",this,Form("DrawWaveform(=\"%s_ampl\")",detector.c_str()));
+    comp_frame->AddFrame(ampl_frame, new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY));
+    // Discriminator waveform box
+    WaveformFrame* disc_frame = new WaveformFrame("Discriminator", disc_sum, disc_chan, comp_frame);
+    disc_frame->button_draw->Connect("Clicked()","display::EventDisplay",this,Form("DrawWaveform(=\"%s_disc\")",detector.c_str()));
+    comp_frame->AddFrame(disc_frame, new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY));
+    // Right now both LSV and OD use the LSV clusters
+    // LSV cluster frame
+    LSVClusterFrame* cluster_frame = new LSVClusterFrame(comp_frame);
+    cluster_frame->button_print_info->Connect("Clicked()","display::EventDisplay",this,"PrintLSVClusters()");
+    cluster_frame->button_zoom_axis->Connect("Clicked()","display::EventDisplay",this,Form("ZoomAxisByLSVCluster(=\"%s\")",detector.c_str()));
+    comp_frame->AddFrame(cluster_frame, new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    if (detector=="wt") cluster_frame->check_box->SetState(kButtonUp);
+    // LSV roi frame
+    LSVROIFrame* roi_frame = new LSVROIFrame(comp_frame);
+    roi_frame->button_print_info->Connect("Clicked()","display::EventDisplay",this,"PrintLSVROIs()");
+    roi_frame->button_zoom_axis->Connect("Clicked()","display::EventDisplay",this,Form("ZoomAxisByLSVROI(=\"%s\")",detector.c_str()));
+    comp_frame->AddFrame(roi_frame, new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    // Event selection box
+    EventSelectionFrame* event_selection_frame = new EventSelectionFrame(comp_frame);
+    event_selection_frame->button_next->Connect("Clicked()","display::EventDisplay",this,"NextEvent()");
+    event_selection_frame->button_prev->Connect("Clicked()","display::EventDisplay",this,"PrevEvent()");
+    comp_frame->AddFrame(event_selection_frame,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    // Set globals
+    if (detector=="lsv") {
+      lsv_ampl_frame = ampl_frame;
+      lsv_disc_frame = disc_frame;
+      lsv_cluster_frame = cluster_frame;
+      lsv_roi_frame = roi_frame;
+      tab_frame->SetElementName("LSV");
+    }
+    if (detector=="wt") {
+      wt_ampl_frame = ampl_frame;
+      wt_disc_frame = disc_frame;
+      wt_cluster_frame = cluster_frame;
+      wt_roi_frame = roi_frame;
+      tab_frame->SetElementName("WT");
+    }
+    // Update Layout
+    comp_frame->MapSubwindows();
+    comp_frame->Layout();
+    comp_frame->MapWindow();
+  }
+
+  //________________________________________________________________________________________
+  EventDisplay::WaveformFrame::WaveformFrame(std::string title, TMultiGraph* mg_sum, TMultiGraph* mg_chan, const TGCompositeFrame* p) : TGGroupFrame(p, title.c_str(), kVerticalFrame) {
+    //    int sumchan_id = 1000;
+    //    int allchan_id = 1001;
+    listbox_waveforms = new TGListBox(this);
+    listbox_waveforms->AddEntry("Sum Channels",display::channeltype::kSumChannel);
+    listbox_waveforms->AddEntry("All Channels",display::channeltype::kAllChannel);
+    TList* list_chan = mg_chan->GetListOfGraphs();
+    std::cout<<"Found "<<list_chan->GetSize()<<" channel graphs.\n";
+    for(int i=0;i<list_chan->GetSize();i++) {
+      if (!list_chan->At(i)) continue;	  
+      TGraph* tg = (TGraph*)(list_chan->At(i));
+      std::string title = tg->GetTitle();
+      std::string::size_type pos1 = title.find("Ch");
+      std::string::size_type pos2 = title.find(';');
+      if (pos1 != std::string::npos && pos2 != std::string::npos) title = title.substr(pos1, pos2-pos1);
+      listbox_waveforms->AddEntry(title.c_str(),i);
+    }
+    listbox_waveforms->Select(display::channeltype::kSumChannel);
+    AddFrame(listbox_waveforms, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandY | kLHintsExpandX,0,0,10,0));
+    button_draw = new TGTextButton(this,"Draw");
+    AddFrame(button_draw, new TGLayoutHints(kLHintsBottom | kLHintsExpandX));
+  }
+  //________________________________________________________________________________________
+  EventDisplay::EventSelectionFrame::EventSelectionFrame(const TGCompositeFrame* p) : TGGroupFrame(p, "Event Selection", kHorizontalFrame) {
+    button_prev = new TGTextButton(this,"Prev Event");
+    button_next = new TGTextButton(this,"Next Event");
+    AddFrame(button_prev, new TGLayoutHints(kLHintsLeft | kLHintsExpandX,0,0,5,0));
+    AddFrame(button_next, new TGLayoutHints(kLHintsLeft | kLHintsExpandX,0,0,5,0));
+  }
+  //________________________________________________________________________________________
+  EventDisplay::TPCSPEFrame::TPCSPEFrame(const TGCompositeFrame* p) : TGGroupFrame(p, "SPE", kVerticalFrame) {
+    // Draw SPE check box
+    check_box = new TGCheckButton(this,"Draw SPE with Channel Waveforms");
+    check_box->SetState(kButtonDown);
+    AddFrame(check_box, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));
+  }
+//__________________________________________________________________________________________
+  EventDisplay::TPCPulseFrame::TPCPulseFrame(const TGCompositeFrame* p) : TGGroupFrame(p, "Pulses", kVerticalFrame) {
+    // Draw Clusters check box
+    check_box = new TGCheckButton(this,"Draw TPC Pulses with Waveforms");
+    check_box->SetState(kButtonDown);
+    AddFrame(check_box, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));
+    // Zoom frame
+    TGHorizontalFrame* frame_zoom = new TGHorizontalFrame(this);
+    button_zoom_axis = new TGTextButton(frame_zoom,"Zoom Axis to Pulse:");
+    entry_region_number = new TGNumberEntry(frame_zoom, 0, 3, -1, TGNumberFormat::kNESInteger, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMinMax, 0, 999);
+    frame_zoom->AddFrame(button_zoom_axis,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    frame_zoom->AddFrame(entry_region_number,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    AddFrame(frame_zoom, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
+    // Print Cluster info
+    button_print_info = new TGTextButton(this,"Print All Pulse Info");
+    AddFrame(button_print_info, new TGLayoutHints(kLHintsTop,2,2,2,2));
+  }    //________________________________________________________________________________________
+  EventDisplay::LSVClusterFrame::LSVClusterFrame(const TGCompositeFrame* p) : TGGroupFrame(p, "Clusters", kVerticalFrame) {
+    // Draw Clusters check box
+    check_box = new TGCheckButton(this,"Draw LSV Clusters with Waveforms");
+    check_box->SetState(kButtonDown);
+    AddFrame(check_box, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));
+    // Zoom frame
+    TGHorizontalFrame* frame_zoom = new TGHorizontalFrame(this);
+    button_zoom_axis = new TGTextButton(frame_zoom,"Zoom Axis to Cluster:");
+    entry_region_number = new TGNumberEntry(frame_zoom, 0, 3, -1, TGNumberFormat::kNESInteger, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMinMax, 0, 999);
+    frame_zoom->AddFrame(button_zoom_axis,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    frame_zoom->AddFrame(entry_region_number,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    AddFrame(frame_zoom, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
+    // Print Cluster info
+    button_print_info = new TGTextButton(this,"Print All Cluster Info");
+    AddFrame(button_print_info, new TGLayoutHints(kLHintsTop,2,2,2,2));
+  }
+  //________________________________________________________________________________________
+  EventDisplay::LSVROIFrame::LSVROIFrame(const TGCompositeFrame* p) : TGGroupFrame(p, "ROIs", kVerticalFrame) {
+    // Draw ROIs check box
+    check_box = new TGCheckButton(this,"Draw LSV ROIs with Waveforms");
+    check_box->SetState(kButtonDown);
+    AddFrame(check_box, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));
+    // Zoom frame
+    TGHorizontalFrame* frame_zoom = new TGHorizontalFrame(this);
+    button_zoom_axis = new TGTextButton(frame_zoom,"Zoom Axis to ROI:");
+    entry_region_number = new TGNumberEntry(frame_zoom, 0, 3, -1, TGNumberFormat::kNESInteger, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMinMax, 0, 999);
+    frame_zoom->AddFrame(button_zoom_axis,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    frame_zoom->AddFrame(entry_region_number,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    AddFrame(frame_zoom, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
+    // Print ROI info
+    button_print_info = new TGTextButton(this,"Print All ROI Info");
+    AddFrame(button_print_info, new TGLayoutHints(kLHintsTop,2,2,2,2));
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::DrawWaveform(const char* charinput) {
+    const std::string input = charinput;
+    int selected;
+    TMultiGraph* mg_sum;
+    TMultiGraph* mg_chan;
+    if (input=="tpc") {
+      mg_sum =  tpc_sum;
+      mg_chan = tpc_chan;
+      selected = tpc_wf_frame->listbox_waveforms->GetSelected();
+    }
+    if (input=="lsv_ampl") {
+      mg_sum =  lsv_ampl_sum;
+      mg_chan = lsv_ampl_chan;
+      selected = lsv_ampl_frame->listbox_waveforms->GetSelected();
+    }
+    if (input=="lsv_disc") {
+      mg_sum =  lsv_disc_sum;
+      mg_chan = lsv_disc_chan;
+      selected = lsv_disc_frame->listbox_waveforms->GetSelected();
+    }
+    if (input=="wt_ampl") {
+      mg_sum =  wt_ampl_sum;
+      mg_chan = wt_ampl_chan;
+      selected = wt_ampl_frame->listbox_waveforms->GetSelected();
+    }
+    if (input=="wt_disc") {
+      mg_sum =  wt_disc_sum;
+      mg_chan = wt_disc_chan;
+      selected = wt_disc_frame->listbox_waveforms->GetSelected();
+    }
+    // Get previous axis limits
+    bool is_drawn = EventDisplay::IsWaveformDrawn();
+    std::string prev_det = EventDisplay::GetDetectorInActivePad();
+    double start_t = EventDisplay::GetAxisValue("min");
+    double end_t = EventDisplay::GetAxisValue("max"); 
+    // Draw waveform
+    TCanvas* c = gPad->GetCanvas();
+    c->Clear();
+    if (selected == display::channeltype::kSumChannel) {
+      TGraph* gr = (TGraph*)(mg_sum->GetListOfGraphs()->First());
+      if (gr) gr->Draw("al"); 
+    } else if (selected == display::channeltype::kAllChannel) {
+      mg_chan->Draw("al");
+    } else {
+      TGraph* gr = (TGraph*)(mg_chan->GetListOfGraphs()->At(selected));
+      gr->Draw("al");
+    }
+    std::string new_det = EventDisplay::GetDetectorInActivePad();
+    // Zoom new graph to previously set limits, if any
+    if (is_drawn && prev_det==new_det) EventDisplay::ZoomAxis(start_t,end_t);
+    c->Update();  
+    // Draw boxes
+    if ((input=="tpc")&&tpc_pulse_frame->check_box->IsOn())
+      DrawTPCPulses(selected);
+    if ((input=="tpc")&&
+	(selected!=display::channeltype::kSumChannel)&&
+	(selected!=display::channeltype::kAllChannel)&&
+	(tpc_spe_frame->check_box->IsOn()))
+      DrawTPCSPEs(GetChannelIDFromMultigraphID(selected,tpc_chan));
+    if ((input=="lsv_ampl"||input=="lsv_disc")&&lsv_cluster_frame->check_box->IsOn()) 
+      DrawLSVClusters();
+    if ((input=="wt_ampl"||input=="wt_disc")&&wt_cluster_frame->check_box->IsOn())
+      DrawLSVClusters();
+    if ((input=="lsv_ampl"||input=="lsv_disc")&&lsv_roi_frame->check_box->IsOn()) 
+      DrawLSVROIs();
+    if ((input=="wt_ampl"||input=="wt_disc")&&wt_roi_frame->check_box->IsOn())
+      DrawLSVROIs();                  
+    // Update
+    c->Update();  
+    gEve->GetBrowser()->GetTabRight()->SetTab(1);
+  }
+
+  //________________________________________________________________________________________
+  bool EventDisplay::IsWaveformDrawn() {
+    TList* list_graphs = gPad->GetCanvas()->GetListOfPrimitives();
+    for (int i=0;i<list_graphs->GetSize();i++) {
+      std::string obj_name = list_graphs->At(i)->GetName();
+      //	std::cout<<obj_name<<std::endl;
+      if (obj_name.find("tpc") != std::string::npos) return true;
+      if (obj_name.find("lsv") != std::string::npos) return true;
+      if (obj_name.find("wt")  != std::string::npos) return true;
+    }
+    //      std::cout<<"No waveform found to zoom.\n";
+    return false;
+  }
+  //________________________________________________________________________________________
+  bool EventDisplay::IsWaveformDrawn(std::string detector) {
+    TList* list_graphs = gPad->GetCanvas()->GetListOfPrimitives();
+    for (int i=0;i<list_graphs->GetSize();i++) {
+      std::string obj_name = list_graphs->At(i)->GetName();
+      if (obj_name.find(detector.c_str())!= std::string::npos) return true;
+    }
+    return false;
+  }
+  //________________________________________________________________________________________
+  void EventDisplay::ZoomAxisByTPCPulse() {
+    int selected = tpc_pulse_frame->entry_region_number->GetIntNumber();
+    // Check if active pad contains a tpc graph
+    if (!(display::EventDisplay::GetDetectorInActivePad()=="tpc")) {
+      std::cout<<"Active pad does not contain a TPC graph."<<std::endl;
+      return;
+    }      
+    // Check if pulse is within bounds
+    const int N = tpc_pulse_vec.size();
+    if (selected<0||selected>=N) {
+      std::cout<<"Pulse "<<selected<<" is out of bounds."<<std::endl;
+      return;
+    }
+    // Get selected pulse bounds
+    double start_us = tpc_pulse_vec.at(selected)->start_us;
+    double end_us = tpc_pulse_vec.at(selected)->end_us;      
+    EventDisplay::ZoomAxis(start_us,end_us);
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::ZoomAxisByLSVCluster(const char* det) {
+    std::string detector = det;
+    int selected;
+    if (detector=="lsv") selected = lsv_cluster_frame->entry_region_number->GetIntNumber();
+    if (detector=="wt")  selected = wt_cluster_frame->entry_region_number->GetIntNumber();
+    // Check if active pad contains an od graph
+    if (!(EventDisplay::GetDetectorInActivePad()=="od")) {
+      std::cout<<"Active pad does not contain an OD graph."<<std::endl;
+      return;
+    }
+    // Check if cluster is within bounds
+    const int N = lsv_cluster_vec.size();
+    if (selected<0||selected>=N) {
+      std::cout<<"Cluster "<<selected<<" is out of bounds."<<std::endl;
+      return;
+    }
+    // Get selected cluster bounds
+    double start_ns = lsv_cluster_vec.at(selected)->start_ns;
+    double end_ns = lsv_cluster_vec.at(selected)->end_ns;      
+    EventDisplay::ZoomAxis(start_ns,end_ns);
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::ZoomAxisByLSVROI(const char* det) {
+    std::string detector = det;
+    int selected;
+    if (detector=="lsv") selected = lsv_roi_frame->entry_region_number->GetIntNumber();
+    if (detector=="wt")  selected = wt_roi_frame->entry_region_number->GetIntNumber();      
+    // Check if roi is within bounds
+    const int N = lsv_roi_vec.size();
+    if (selected<0||selected>=N) {
+      std::cout<<"ROI "<<selected<<" is out of bounds."<<std::endl;
+      return;
+    }
+    // Get selected roi bounds
+    double start_ns = lsv_roi_vec.at(selected)->start_ns;
+    double end_ns = lsv_roi_vec.at(selected)->end_ns;      
+    EventDisplay::ZoomAxis(start_ns,end_ns);
+  }
+
+  //________________________________________________________________________________________     
+  void EventDisplay::ZoomAxis(double start_t,double end_t) {
+    // Find the graph in the active canvas
+    TMultiGraph* mg;
+    TGraph* gr;
+    TList* list_graphs = gPad->GetCanvas()->GetListOfPrimitives();
+    for (int i=0;i<list_graphs->GetSize();i++) {
+      std::string obj_name = list_graphs->At(i)->GetName();
+      //	std::cout<<obj_name<<std::endl;
+      if (obj_name.find("mg_")!= std::string::npos) {
+	mg = (TMultiGraph*)gPad->GetPrimitive(obj_name.c_str());
+	int start_bin = mg->GetHistogram()->GetXaxis()->FindBin(start_t);
+	int end_bin = mg->GetHistogram()->GetXaxis()->FindBin(end_t);
+	mg->GetXaxis()->SetRange(start_bin,end_bin);
+	break;
+      }
+      if (obj_name.find("gr_")!= std::string::npos) {
+	gr = (TGraph*)gPad->GetPrimitive(obj_name.c_str());
+	int start_bin = gr->GetXaxis()->FindBin(start_t);
+	int end_bin = gr->GetXaxis()->FindBin(end_t);
+	gr->GetXaxis()->SetRange(start_bin,end_bin);
+	break;
+      }
+    }
+    gPad->Modified();
+    gPad->Update();
+  }
+  
+  //________________________________________________________________________________________
+  int EventDisplay::GetChannelIDFromMultigraphID(int mg_id, TMultiGraph* mg) {
+    TList* list_graphs = mg->GetListOfGraphs();
+    const int N_channels = list_graphs->GetSize();
+    if (mg_id>N_channels) return -1;
+    TGraph* gr = (TGraph*)list_graphs->At(mg_id);
+    std::string gr_name = gr->GetName();
+    int last_index = gr_name.find_last_not_of("0123456789");
+    std::string str_ch_id = gr_name.substr(last_index + 1);  
+    std::string::size_type sz;
+    int ch_id = std::stoi(str_ch_id,&sz);
+    return ch_id;
+}
+  
+  //________________________________________________________________________________________
+  std::string EventDisplay::TPCorOD(std::string detector) {
+    if (detector=="tpc") return "tpc";
+    if (detector=="lsv"||detector=="wt") return "od";
+  }
+  
+  //________________________________________________________________________________________
+  std::string EventDisplay::GetDetectorInActivePad() {
+    std::string det_string = "";
+    TList* canvas_graphs = gPad->GetCanvas()->GetListOfPrimitives();
+    for (int i=0;i<canvas_graphs->GetSize();i++) {
+      std::string obj_name = canvas_graphs->At(i)->GetName();
+      if (obj_name.find("tpc") != std::string::npos) det_string += "tpc";
+      if (obj_name.find("lsv") != std::string::npos) det_string += "lsv";
+      if (obj_name.find("wt")  != std::string::npos) det_string += "wt";
+    }
+    if (det_string.find("tpc") != std::string::npos) return        "tpc";
+    else if (det_string.find("lsv") != std::string::npos) return   "od";
+    else if (det_string.find("wt")  != std::string::npos) return   "od";
+    else return "";
+  }
+
+  ///////////////////////////////////////
+  /////////// Options Tab ///////////////
+  ///////////////////////////////////////
+
+  //________________________________________________________________________________________
+  void EventDisplay::CreateOptionsTab() {
+    TEveWindowSlot* slot = TEveWindow::CreateWindowInTab(gEve->GetBrowser()->GetTabLeft());
+    tab_options = slot->MakeTab();
+    tab_options->SetElementName("Options");
+    tab_options->SetShowTitleBar(kFALSE);
+    if (tpc_enabled) CreateOptionsTPCTab();
+    if (lsv_enabled) CreateOptionsODTab("lsv");
+    if (wt_enabled)  CreateOptionsODTab("wt");
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::CreateOptionsTPCTab() {
+    TEveWindowSlot* slot = tab_options->NewSlot();
+    TEveWindowFrame* tab_frame = slot->MakeFrame();
+    tab_frame->SetShowTitleBar(kFALSE);
+    TGCompositeFrame* comp_frame = tab_frame->GetGUICompositeFrame();
+    TGTextButton* button_color_by_axis = new TGTextButton(comp_frame,"Color PMTs by Current Canvas Limits");
+    button_color_by_axis->Connect("Clicked()","display::EventDisplay",this,"ColorByAxis(=\"tpc\")");
+    comp_frame->AddFrame(button_color_by_axis,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    // Set globals
+    tab_frame->SetElementName("TPC");
+    comp_frame->MapSubwindows();
+    comp_frame->Layout();
+    comp_frame->MapWindow();
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::CreateOptionsODTab(std::string detector) {
+    TEveWindowSlot* slot = tab_options->NewSlot();
+    TEveWindowFrame* tab_frame = slot->MakeFrame();
+    tab_frame->SetShowTitleBar(kFALSE);
+    TGCompositeFrame* comp_frame = tab_frame->GetGUICompositeFrame();
+    TGTextButton* button_color_by_axis = new TGTextButton(comp_frame,"Color PMTs by Current Axis Limits");
+    button_color_by_axis->Connect("Clicked()","display::EventDisplay",this,Form("ColorByAxis(=\"%s\")",detector.c_str()));
+    comp_frame->AddFrame(button_color_by_axis,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    // Set globals
+    if (detector=="lsv") {
+      tab_frame->SetElementName("LSV");
+    }
+    if (detector=="wt") {
+      tab_frame->SetElementName("WT");
+    }
+    comp_frame->MapSubwindows();
+    comp_frame->Layout();
+    comp_frame->MapWindow();
+  }
+
+  ///////////////////////////////////////
+  //////////// Canvas Tab ///////////////
+  ///////////////////////////////////////
+
+  //________________________________________________________________________________________
+  void EventDisplay::CreateCanvas() {
+    GetBrowser()->StartEmbedding(TRootBrowser::kRight);
+    canvas = new TCanvas();
+    GetBrowser()->StopEmbedding("Canvas");
+  }
+
+  ///////////////////////////////////////
+  /////////// Geometry Tab //////////////
+  ///////////////////////////////////////
+
+  //________________________________________________________________________________________
+  void EventDisplay::CreateGeometry() {
+    // Set camera orientation         
+    GetDefaultGLViewer()->SetCurrentCamera(TGLViewer::kCameraPerspXOY);
+    // Create the geometries
+    if (tpc_geo_enabled) CreateDetector("tpc");
+    if (lsv_geo_enabled) CreateDetector("lsv");
+    if (wt_geo_enabled)  CreateDetector("wt");
+  }
+  //________________________________________________________________________________________
+  void EventDisplay::CreateDetector(std::string detector) {
+    int min_ch_id=0;
+    int max_ch_id=0;
+    if(detector=="tpc") {
+      std::cout<<"Making TPC geometry.\n";
+      min_ch_id=0;
+      max_ch_id=37;
+    }
+    if(detector=="lsv") {
+      min_ch_id=0;
+      max_ch_id=119;
+    }
+    if(detector=="wt") {
+      min_ch_id=128;
+      max_ch_id=231;
+    }
+    TEveElementList* detectorlist = new TEveElementList(detector.c_str(),detector.c_str());
+    AddElement(detectorlist);
+    for (int ch=min_ch_id;ch<=max_ch_id;ch++) {
+      display::PMT_positions* p = 
+	new display::PMT_positions(detector,ch);  
+      if (p->GetPMTx()>10000) continue; // Channels with no corresponding pmt were given large coordinates
+      TEveVector vec(p->GetPMTx(),p->GetPMTy(),p->GetPMTz());
+      PMT* pmt = new PMT(detector,ch);
+      //	TEveGeoShape* pmtshape = pmt->GetShape();
+      pmt->RefMainTrans().SetPos(vec);
+      pmt->RefMainTrans().SetRotByAngles(p->GetPMTRotx(), p->GetPMTRoty(), p->GetPMTRotz());
+      detectorlist->AddElement(pmt);
+      delete p;
+    }
+    // Set globals
+    if(detector=="tpc") {
+      tpc_geometry = detectorlist;
+    }
+    if(detector=="lsv") {
+      lsv_geometry = detectorlist;
+    }
+    if(detector=="wt") {
+      wt_geometry = detectorlist;
+    }
+    Redraw3D(kTRUE);
+  }
+  //________________________________________________________________________________________
+  double EventDisplay::GetAxisValue(std::string option) {
+    int    start_bin = 0;
+    int    end_bin   = 0;
+    double start_ns  = 0.;
+    double end_ns    = 0.;
+    TList* canvas_graphs = gPad->GetCanvas()->GetListOfPrimitives();
+    for (int i=0;i<canvas_graphs->GetSize();i++) {
+      std::string obj_name = canvas_graphs->At(i)->GetName();
+      if (obj_name.find("mg_") != std::string::npos) {
+	TMultiGraph* mg = (TMultiGraph*)gPad->GetPrimitive(obj_name.c_str());
+	start_bin = mg->GetHistogram()->GetXaxis()->GetFirst();
+	end_bin   = mg->GetHistogram()->GetXaxis()->GetLast();
+	start_ns  = mg->GetHistogram()->GetXaxis()->GetBinCenter(start_bin);
+	end_ns    = mg->GetHistogram()->GetXaxis()->GetBinCenter(end_bin);
+	break;
+      }
+      if (obj_name.find("gr_") != std::string::npos) {
+	TGraph* gr = (TGraph*)gPad->GetPrimitive(obj_name.c_str());
+	start_bin = gr->GetHistogram()->GetXaxis()->GetFirst();
+	end_bin   = gr->GetHistogram()->GetXaxis()->GetLast();
+	start_ns  = gr->GetHistogram()->GetXaxis()->GetBinCenter(start_bin);
+	end_ns    = gr->GetHistogram()->GetXaxis()->GetBinCenter(end_bin);
+	break;
+      }
+      if (i>=canvas_graphs->GetSize()) {
+	std::cout<<"No axis found."<<std::endl;
+	return 0.;	// No graphs found
+      }
+    }
+    if (option=="min") return start_ns;
+    if (option=="max") return end_ns;
+    return 0.;
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::ColorByAxis(const char* det) {
+    std::string detector = det;
+    if (TPCorOD(detector)!=EventDisplay::GetDetectorInActivePad()) {
+      std::cout<<"Requested detector is not drawn in current canvas."<<std::endl;
+      return;
+    }    
+    if (detector=="tpc"&&!tpc_geo_enabled) return;
+    if (detector=="lsv"&&!lsv_geo_enabled) return;
+    if (detector=="wt" &&!wt_geo_enabled)  return;
+    TMultiGraph* mg_chan;
+    if (detector=="tpc") mg_chan = tpc_chan;
+    if (detector=="lsv") mg_chan = lsv_ampl_chan;
+    if (detector=="wt")  mg_chan = wt_ampl_chan;      
+    if (!mg_chan) {std::cout<<"Error coloring "<<detector<<std::endl; return;}
+    double start_t = EventDisplay::GetAxisValue("min");
+    double end_t   = EventDisplay::GetAxisValue("max");
+    // Get list of channels
+    TList* list_graphs = mg_chan->GetListOfGraphs();
+    const int N_channels = list_graphs->GetSize();
+    // Get integrals and max integral
+    double max_integral = 0;
+    std::vector<int>    chan_id;
+    std::vector<double> chan_integral;
+    for (int i=0;i<N_channels;i++) {
+      TGraph* gr = (TGraph*)list_graphs->At(i);
+      // Get integral
+      double integral = EventDisplay::GetGraphIntegral(gr,start_t,end_t);
+      if (detector=="tpc") integral = /*log10*/(fabs(integral))/100;
+      if (detector=="lsv"||detector=="wt") integral = fabs(integral/1.25e9);
+      //std::cout<<i<<" "<<integral<<"\n";
+      chan_integral.push_back(integral);
+      if (integral>max_integral) max_integral=integral;
+      // Get channel id
+      int id = EventDisplay::GetChannelIDFromMultigraphID(i,mg_chan);
+      chan_id.push_back(id);
+    }
+    // Set palette
+    Int_t int_max_integral = max_integral;
+    TEveRGBAPalette* pal = EventDisplay::MakePalette(int_max_integral);      
+    // Get detector list
+    TEveElementList* detector_list;
+    if (detector=="tpc") detector_list = tpc_geometry; 
+    if (detector=="lsv") detector_list = lsv_geometry; 
+    if (detector=="wt")  detector_list = wt_geometry; 
+    // Color pmts by integral
+    for (int i=0;i<N_channels;i++) {
+      int id  = chan_id.at(i);
+      double integral = chan_integral.at(i);
+      TEveGeoShape* pmt = (TEveGeoShape*)detector_list->FindChild(Form("%s_channel_%d",detector.c_str(),id));
+      if (!pmt) continue;
+      //	std::cout<<"Channel "<<id<<" integral: "<<integral<<std::endl;
+      const UChar_t* col = pal->ColorFromValue(integral);
+      //      std::cout<<"Coloring pmt "<<id<<"\n";
+      pmt->SetMainColorRGB(col[0],col[1],col[2]);
+    }
+    TGLViewer* v = gEve->GetDefaultGLViewer();
+    // Get palette overlay
+    double po_x = 0.7;
+    double po_y; // detector dependent
+    double width = 0.28;
+    double height = 0.05;
+    if (detector=="tpc") {delete tpc_palette; po_y = 0.25;} 
+    if (detector=="lsv") {delete lsv_palette; po_y = 0.15;} 
+    if (detector=="wt")  {delete wt_palette;  po_y = 0.05;} 
+    TEveRGBAPaletteOverlay* po = new TEveRGBAPaletteOverlay(pal, po_x, po_y, width, height);
+    v->AddOverlayElement(po);
+    gEve->Redraw3D(kTRUE);
+    gEve->GetBrowser()->GetTabRight()->SetTab(0);
+    // Set globals
+    if (detector=="tpc") tpc_palette = po;
+    if (detector=="lsv") lsv_palette = po;
+    if (detector=="wt")  wt_palette  = po;
+  }
+
+  //________________________________________________________________________________________
+  double EventDisplay::GetGraphIntegral(TGraph* g, double start_ns, double end_ns) {
+    TH1D* h = new TH1D("h","h",g->GetN(),g->GetX()[0],g->GetX()[g->GetN()-1]);
+    for(int i=0; i<g->GetN();i++) h->Fill(g->GetX()[i],g->GetY()[i]);
+    int start_bin = h->GetXaxis()->FindBin(start_ns);
+    int end_bin = h->GetXaxis()->FindBin(end_ns);
+    double integral=h->Integral(start_bin,end_bin);
+    delete h;
+    return integral;
+  }
+
+  //________________________________________________________________________________________
+  TEveRGBAPalette* EventDisplay::MakePalette(int int_max_integral) {
+    const Int_t NRGBs = 3;
+    const Int_t NCont = 50;
+    Double_t stops[NRGBs] = { 0.05, 0.50, 1.00 };
+    Double_t red[NRGBs]   = { 0.1, 1.00, 1.00 };
+    Double_t green[NRGBs] = { 0.1, 1.00, 0.00 };
+    Double_t blue[NRGBs]  = { 0.1, 0.00, 0.00 };
+    TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
+    TEveRGBAPalette *pal = new TEveRGBAPalette(0,int_max_integral+1);
+    return pal;
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::DrawTPCPulses(int ch) {
+    for(int i=0;i<tpc_pulse_vec.size();i++) {
+      // Draw pulse box
+      double min;
+      if (ch == display::channeltype::kSumChannel)
+	min = tpc_pulse_vec.at(i)->base + tpc_pulse_vec.at(i)->height;
+      else min = gPad->GetUymin();
+      TBox* box = new TBox(tpc_pulse_vec.at(i)->start_us, min, tpc_pulse_vec.at(i)->end_us, tpc_pulse_vec.at(i)->base);
+      box->SetLineColor(kGreen);
+      box->SetFillStyle(0);
+      box->Draw();
+      // Draw peak line for sum channel
+      if (ch == display::channeltype::kSumChannel) {
+	TLine* line = new TLine(tpc_pulse_vec.at(i)->peak_us,tpc_pulse_vec.at(i)->base,tpc_pulse_vec.at(i)->peak_us,tpc_pulse_vec.at(i)->base + tpc_pulse_vec.at(i)->height);
+	line->SetLineColor(kMagenta);
+	line->Draw();
+      }
+    }
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::DrawTPCSPEs(int ch) {
+    for(int i=0;i<tpc_spe_vec.size();i++) {
+      if (tpc_spe_vec.at(i)->channel != ch) continue;  // Only draw SPEs for the plotted channel
+      TBox* box = new TBox(tpc_spe_vec.at(i)->start_us, tpc_spe_vec.at(i)->base + tpc_spe_vec.at(i)->height, tpc_spe_vec.at(i)->end_us, tpc_spe_vec.at(i)->base);
+      box->SetLineColor(kRed);
+      box->SetFillStyle(0);
+      box->Draw();
+    }
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::PrintTPCPulses() {
+    for(int i=0; i<tpc_pulse_vec.size(); i++) {
+      std::cout<<"Pulse: " <<i
+	       <<"\tStart: " <<tpc_pulse_vec.at(i)->start_us
+	       <<"\tEnd: "   <<tpc_pulse_vec.at(i)->end_us
+	       <<"\tPeak: "  <<tpc_pulse_vec.at(i)->peak_us
+	       <<"\tBase: "  <<tpc_pulse_vec.at(i)->base
+	       <<"\tHeight: "<<tpc_pulse_vec.at(i)->height
+	       <<std::endl;
+    }
+  }          
+                    
+  //________________________________________________________________________________________
+  void EventDisplay::DrawLSVClusters() {
+    for(int i=0;i<lsv_cluster_vec.size();i++) {
+      TBox* box = new TBox(lsv_cluster_vec.at(i)->start_ns, 0, lsv_cluster_vec.at(i)->end_ns, gPad->GetUymax());
+      box->SetLineColor(kGreen);
+      box->SetFillStyle(0);
+      box->Draw();
+    }
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::PrintLSVClusters() {
+    for(int i=0; i<lsv_cluster_vec.size(); i++) {
+      std::cout<<"Cluster: " <<i
+	       <<"\tStart: " <<lsv_cluster_vec.at(i)->start_ns
+	       <<"\tEnd: "   <<lsv_cluster_vec.at(i)->end_ns
+	       <<"\tCharge: "<<lsv_cluster_vec.at(i)->charge
+	       <<"\tHeight: "<<lsv_cluster_vec.at(i)->height
+	       <<"\tMax Multiplicity: "<<lsv_cluster_vec.at(i)->max_multiplicity
+	       <<std::endl;
+    }
+  }          
+
+  //________________________________________________________________________________________
+  void EventDisplay::DrawLSVROIs() {
+    for(int i=0;i<lsv_roi_vec.size();i++) {
+      TBox* box = new TBox(lsv_roi_vec.at(i)->start_ns, 0, lsv_roi_vec.at(i)->end_ns, gPad->GetUymax());
+      box->SetLineColor(kRed);
+      box->SetFillStyle(0);
+      box->Draw();
+    }
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::PrintLSVROIs() {
+    double start_ns;
+    double end_ns;
+    double charge;
+    int max_multiplicity;
+    lsv_roi_tree->SetBranchAddress("start_ns",&start_ns);
+    lsv_roi_tree->SetBranchAddress("end_ns",&end_ns);
+    lsv_roi_tree->SetBranchAddress("charge",&charge);
+    lsv_roi_tree->SetBranchAddress("max_multiplicity",&max_multiplicity);
+    for(int i=0; i<lsv_roi_tree->GetEntries(); i++) {
+      lsv_roi_tree->GetEntry(i);
+      std::cout<<"ROI: "     <<i
+	       <<"\tStart: " <<start_ns
+	       <<"\tEnd: "   <<end_ns
+	       <<"\tCharge: "<<charge
+	       <<"\tMax Multiplicity: "<<max_multiplicity
+	       <<std::endl;
+    }
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::NextEvent() {LoadEvent(current_event_id+1);}
+  void EventDisplay::PrevEvent() {LoadEvent(current_event_id-1);}
+  
+}// end of display namespace
+
+void PrintUsage() {
+  std::cout<<"Correct Usage:"<<std::endl;  
+  std::cout<<"./EventDisplay tpc_display_output.root"<<std::endl;
+  std::cout<<"./EventDisplay od_display_output.root"<<std::endl;
+  std::cout<<"./EventDisplay tpc_display_output.root od_display_output.root"<<std::endl;
+  std::cout<<"./EventDisplay od_display_output.root tpc_display_output.root"<<std::endl;
+}
+
+int main(int argc, char* argv[]) {
+  // Check arguments
+  if (argc!=2&&argc!=3) {
+    std::cout<<"Invalid usage.\n";
+    PrintUsage();
+    return 0;
+  }
+  // Set up environment
+  gEnv->SetValue("Gui.IconFont",  "-*-helvetica-medium-r-*-*-14-*-*-*-*-*-iso8859-1");
+  gEnv->SetValue("Gui.StatusFont","-*-helvetica-medium-r-*-*-14-*-*-*-*-*-iso8859-1");
+  TApplication app("app",0,0);
+  TApplication::NeedGraphicsLibs();
+  gApplication->InitializeGraphics();
+  TEveUtil::SetupEnvironment();
+  TEveUtil::SetupGUI();
+  // Set up display
+  display::EventDisplay* sed;
+  std::cout<<"Initializing display."<<std::endl;
+  if (argc==2)
+    sed = new display::EventDisplay(argv[1],"");
+  if (argc==3)
+    sed = new display::EventDisplay(argv[1],argv[2]);      
+  std::cout<<"Loaded display."<<std::endl;
+  if (!sed) {
+    std::cout<<"Error during initialization."<<std::endl;
+    return 0;
+  }
+  sed->Create();
+  std::cout<<"Created display."<<std::endl;
+  app.Run();
+  return 0;
+}
