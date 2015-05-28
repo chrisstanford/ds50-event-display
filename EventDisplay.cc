@@ -20,57 +20,33 @@ namespace display {
   ///////////////////////////////////////
 
   //________________________________________________________________________________________
-  void EventDisplay::LoadFile(std::string filepath1, std::string filepath2) {
+  void EventDisplay::LoadFile(std::string tpc_filepath, std::string od_filepath) {
     // Get trees from files
     TTree* t;
-    f1 = TFile::Open(filepath1.c_str());
-    f1->GetObject("display/tpc_settings_tree",t);
-    if (t) tpc_settings_tree = t;
-    f1->GetObject("display/tpc_display_tree",t);
-    if (t) tpc_display_tree = t; 
-    f1->GetObject("display/od_settings_tree",t);
-    if (t) od_settings_tree = t;
-    f1->GetObject("display/od_display_tree",t);
-    if (t) od_display_tree = t; 
-    //    f1->Close();
-    if (filepath2!="") {
-      f2 = TFile::Open(filepath2.c_str());
-      f2->GetObject("display/tpc_settings_tree",t);
-      if (t) {
-       	if (tpc_settings_tree)
-	  std::cout<<"Warning: Duplicate TPC trees. Overriding first tree."<<std::endl;
-	tpc_settings_tree = t;
-      }
-      f2->GetObject("display/tpc_display_tree",t);
-      if (t) {
-	if (tpc_display_tree)
-	  std::cout<<"Warning: Duplicate TPC trees. Overriding first tree."<<std::endl;
-	tpc_display_tree = t; 
-      }
+    // Get TPC tree
+    if (tpc_filepath!="") {
+      f1 = TFile::Open(tpc_filepath.c_str());
+      f1->GetObject("display/tpc_settings_tree",t);
+      if (t) tpc_settings_tree = t;
+      f1->GetObject("display/tpc_display_tree",t);
+      if (t) tpc_display_tree = t; 
+    }
+    // Get OD tree
+    if (od_filepath!="") {
+      f2 = TFile::Open(od_filepath.c_str());
       f2->GetObject("display/od_settings_tree",t);
-      if (t) {
-	if (od_settings_tree) 
-	  std::cout<<"Warning: Duplicate OD trees. Overriding first tree."<<std::endl;
-	od_settings_tree = t;
-      }
+      if (t) od_settings_tree = t;
       f2->GetObject("display/od_display_tree",t);
-      if (t) {
-	if (od_display_tree) 
-	  std::cout<<"Warning: Duplicate OD trees. Overriding first tree."<<std::endl;
-	od_display_tree = t;
-      } 
-      //      f2->Close();
-    }    
-
-    if (tpc_settings_tree/*->GetEntries()*/) {
+      if (t) od_display_tree = t; 
+    }
+    // Load TPC Settings
+    if (tpc_settings_tree) {
       tpc_settings_tree->SetBranchAddress("tpc_enabled",    &tpc_enabled);
       tpc_settings_tree->SetBranchAddress("tpc_geo_enabled",&tpc_geo_enabled);
       tpc_settings_tree->GetEntry(0);
     }
-    std::cout<<"TPC enabled: "         <<tpc_enabled    <<std::endl;
-    std::cout<<"TPC geometry enabled: "<<tpc_geo_enabled<<std::endl;
     // Load TPC data
-    if (tpc_display_tree/*->GetEntries()*/) {
+    if (tpc_display_tree) {
       tpc_display_tree->SetBranchAddress("tpc_run_id",     &tpc_run_id);
       tpc_display_tree->SetBranchAddress("tpc_event_id",   &tpc_event_id);
       tpc_display_tree->SetBranchAddress("tpc_sum",        &tpc_sum);
@@ -79,19 +55,15 @@ namespace display {
       tpc_display_tree->SetBranchAddress("tpc_spe_tree",   &tpc_spe_tree);
     }
     // Load OD settings
-    if (od_settings_tree/*->GetEntries()*/) {
+    if (od_settings_tree) {
       od_settings_tree->SetBranchAddress("lsv_enabled",    &lsv_enabled);
       od_settings_tree->SetBranchAddress("wt_enabled",     &wt_enabled);
       od_settings_tree->SetBranchAddress("lsv_geo_enabled",&lsv_geo_enabled);
       od_settings_tree->SetBranchAddress("wt_geo_enabled", &wt_geo_enabled);
       od_settings_tree->GetEntry(0);
     }
-    std::cout<<"LSV enabled: "         <<lsv_enabled    <<std::endl;
-    std::cout<<"WT enabled: "          <<wt_enabled     <<std::endl;
-    std::cout<<"LSV geometry enabled: "<<lsv_geo_enabled<<std::endl;
-    std::cout<<"WT geometry enabled: " <<wt_geo_enabled <<std::endl;
     // Load OD data
-    if (od_display_tree/*->GetEntries()*/) {
+    if (od_display_tree) {
       od_display_tree->SetBranchAddress("od_run_id",      &od_run_id);
       od_display_tree->SetBranchAddress("od_event_id",    &od_event_id);
       od_display_tree->SetBranchAddress("lsv_ampl_sum",   &lsv_ampl_sum);
@@ -105,6 +77,12 @@ namespace display {
       od_display_tree->SetBranchAddress("lsv_cluster_tree",&lsv_cluster_tree);
       od_display_tree->SetBranchAddress("lsv_roi_tree",    &lsv_roi_tree);
     }
+    std::cout<<"TPC enabled: "         <<tpc_enabled    <<std::endl;
+    std::cout<<"LSV enabled: "         <<lsv_enabled    <<std::endl;
+    std::cout<<"WT  enabled: "          <<wt_enabled     <<std::endl;
+    std::cout<<"TPC geometry enabled: "<<tpc_geo_enabled<<std::endl;
+    std::cout<<"LSV geometry enabled: "<<lsv_geo_enabled<<std::endl;
+    std::cout<<"WT  geometry enabled: " <<wt_geo_enabled <<std::endl;
   }
 
   //________________________________________________________________________________________
@@ -948,14 +926,22 @@ namespace display {
 
   //________________________________________________________________________________________
   TEveRGBAPalette* EventDisplay::MakePalette(int int_max_integral) {
-    const Int_t NRGBs = 3;
-    const Int_t NCont = 50;
-    Double_t stops[NRGBs] = { 0.05, 0.50, 1.00 };
-    Double_t red[NRGBs]   = { 0.1, 1.00, 1.00 };
-    Double_t green[NRGBs] = { 0.1, 1.00, 0.00 };
-    Double_t blue[NRGBs]  = { 0.1, 0.00, 0.00 };
+    const int NRGBs = 6;
+    const int NCont = 75;
+    double stops[NRGBs] = { 0.00, 0.05, 0.34, 0.61, 0.84, 1.00 };
+    double red[NRGBs]   = { 0.00, 0.00, 0.00, 0.87, 1.00, 0.51 };
+    double green[NRGBs] = { 0.00, 0.00, 0.81, 1.00, 0.20, 0.00 };
+    double blue[NRGBs]  = { 0.30, 0.51, 1.00, 0.12, 0.00, 0.00 };
     TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
     TEveRGBAPalette *pal = new TEveRGBAPalette(0,int_max_integral+1);
+    // const Int_t NRGBs = 3;
+    // const Int_t NCont = 50;
+    // Double_t stops[NRGBs] = { 0.05, 0.50, 1.00 };
+    // Double_t red[NRGBs]   = { 0.1, 1.00, 1.00 };
+    // Double_t green[NRGBs] = { 0.1, 1.00, 0.00 };
+    // Double_t blue[NRGBs]  = { 0.1, 0.00, 0.00 };
+    // TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
+    // TEveRGBAPalette *pal = new TEveRGBAPalette(0,int_max_integral+1);
     return pal;
   }
 
@@ -1079,6 +1065,37 @@ int main(int argc, char* argv[]) {
     PrintUsage();
     return 0;
   }
+  // Verify input files. Make sure root files contain 
+  // TTrees that can be read by the event display
+  TFile* f;
+  TTree* t;
+  std::string tpc_filepath="";
+  std::string  od_filepath="";
+  // Verify first file
+  if (argc>1) {
+    f = TFile::Open(argv[1]);
+    f->GetObject("display/tpc_display_tree",t);
+    if (t) tpc_filepath = argv[1];
+    if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in TPC tree. Aborting.\n\n";return 0;}
+    f->GetObject("display/od_display_tree",t);
+    if (t) od_filepath = argv[1]; 
+    if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in OD tree. Aborting.\n\n";return 0;}
+    f->Close();
+  }
+  if (argc>2) {
+    f = TFile::Open(argv[2]);
+    f->GetObject("display/tpc_display_tree",t);
+    if (t) tpc_filepath = argv[2];
+    if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in TPC tree. Aborting.\n\n";return 0;}
+    f->GetObject("display/od_display_tree",t);
+    if (t) od_filepath = argv[2]; 
+    if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in OD tree. Aborting.\n\n";return 0;}
+    f->Close();
+  }
+  if (tpc_filepath==""&&od_filepath=="") {
+    std::cout<<"\nError: No events found. Aborting.\n\n";
+    return 0;
+  }
   // Set up environment
   gEnv->SetValue("Gui.IconFont",  "-*-helvetica-medium-r-*-*-14-*-*-*-*-*-iso8859-1");
   gEnv->SetValue("Gui.StatusFont","-*-helvetica-medium-r-*-*-14-*-*-*-*-*-iso8859-1");
@@ -1090,10 +1107,7 @@ int main(int argc, char* argv[]) {
   // Set up display
   display::EventDisplay* sed;
   std::cout<<"Initializing display."<<std::endl;
-  if (argc==2)
-    sed = new display::EventDisplay(argv[1],"");
-  if (argc==3)
-    sed = new display::EventDisplay(argv[1],argv[2]);      
+  sed = new display::EventDisplay(tpc_filepath,od_filepath);
   std::cout<<"Loaded display."<<std::endl;
   if (!sed) {
     std::cout<<"Error during initialization."<<std::endl;
