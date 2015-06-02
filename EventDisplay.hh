@@ -33,6 +33,7 @@
 #include "TChain.h"
 #include "TGString.h"
 #include "TApplication.h"
+#include "TSystem.h"
 
 // eve includes
 #include "TEveManager.h"
@@ -79,6 +80,8 @@ namespace display {
     void PrintLSVClusters();
     void PrintLSVROIs();
     void ColorByAxis(const char* det);      
+    void CreateMovieByAxis(const char* det);
+    void SavePicture(const char* fname);
 
   private:
     // GUI Structures
@@ -230,10 +233,12 @@ namespace display {
     void CreateCanvas();
     void CreateGeometry();
     void CreateDetector(std::string detector);
+    void ColorByStartEnd(std::string detector, double start_t, double end_t, double max_integral_override=-1., bool draw_palette=true);
     bool IsWaveformDrawn();
     bool IsWaveformDrawn(std::string detector);
     int  GetChannelIDFromMultigraphID(int mg_id, TMultiGraph* mg); // Channel id from graph at index mg_id in multigraph
-    double GetGraphIntegral(TGraph* g, double start_ns, double end_ns);
+    double GetMaxOfMultiGraph(TMultiGraph* mg, double start_t, double end_t);
+    double GetGraphIntegral(TGraph* g, double start_t, double end_t);
     double GetAxisValue(std::string option);
     std::string TPCorOD(std::string detector); // returns "tpc" or "od"
     std::string GetDetectorInActivePad(); // returns "tpc" or "od"
