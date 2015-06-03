@@ -53,6 +53,7 @@
 #include "TGButton.h"
 #include "TGTab.h"
 #include "TGListBox.h"
+#include "TGLabel.h"
 #include "TGFrame.h"
 #include "TGNumberEntry.h"
 
@@ -128,6 +129,21 @@ namespace display {
       EventSelectionFrame(const TGCompositeFrame* p);
       TGTextButton*       button_next;
       TGTextButton*       button_prev;
+    };
+    class GIFFrame : public TGGroupFrame {
+    public:
+      GIFFrame(const TGCompositeFrame* p);
+      TGCheckButton*      check_box;
+      TGNumberEntry*      entry_step_size;
+      TGNumberEntry*      entry_window_size;
+      TGNumberEntry*      entry_fps;
+      TGTextButton*       button_record;
+    private:
+      TGLabel*            label_warning;      
+      TGLabel*            label_step_size;
+      TGLabel*            label_window_size;
+      TGLabel*            label_fps;
+      
     };
       
     // Objects
@@ -209,6 +225,10 @@ namespace display {
     LSVClusterFrame*    wt_cluster_frame;
     LSVROIFrame*        wt_roi_frame;
 
+    GIFFrame*           tpc_gif_frame;
+    GIFFrame*           lsv_gif_frame;
+    GIFFrame*           wt_gif_frame;
+
     TEveElementList*    tpc_geometry;
     TEveElementList*    lsv_geometry;
     TEveElementList*    wt_geometry;
@@ -237,11 +257,19 @@ namespace display {
     bool IsWaveformDrawn();
     bool IsWaveformDrawn(std::string detector);
     int  GetChannelIDFromMultigraphID(int mg_id, TMultiGraph* mg); // Channel id from graph at index mg_id in multigraph
+    int  GetMultigraphIDFromChannelID(int ch_id, TMultiGraph* mg); // Index of graph for channel ch_id in multigraph
+
     double GetMaxOfMultiGraph(TMultiGraph* mg, double start_t, double end_t);
     double GetGraphIntegral(TGraph* g, double start_t, double end_t);
     double GetAxisValue(std::string option);
+    double GetBinWidth(std::string detector);
+    double AdjustIntegral(std::string detector, double integral); // Adjust the numerical integral to proper units 
     std::string TPCorOD(std::string detector); // returns "tpc" or "od"
     std::string GetDetectorInActivePad(); // returns "tpc" or "od"
+    TGraph* GetChannelGraph(std::string detector, int ch);
+    TGraph* GetSumGraph(std::string detector);
+    TMultiGraph* GetSumMultiGraph(std::string detector);
+    TMultiGraph* GetChannelMultiGraph(std::string detector);
     TEveRGBAPalette* MakePalette(int int_max_integral);
     TEveGeoShape* MakePMT(std::string detector, int ch_id, double size);
   };

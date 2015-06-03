@@ -413,6 +413,7 @@ namespace display {
     check_box->SetState(kButtonDown);
     AddFrame(check_box, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));
   }
+
 //__________________________________________________________________________________________
   EventDisplay::TPCPulseFrame::TPCPulseFrame(const TGCompositeFrame* p) : TGGroupFrame(p, "Pulses", kVerticalFrame) {
     // Draw Clusters check box
@@ -429,7 +430,9 @@ namespace display {
     // Print Cluster info
     button_print_info = new TGTextButton(this,"Print All Pulse Info");
     AddFrame(button_print_info, new TGLayoutHints(kLHintsTop,2,2,2,2));
-  }    //________________________________________________________________________________________
+  }    
+
+//________________________________________________________________________________________
   EventDisplay::LSVClusterFrame::LSVClusterFrame(const TGCompositeFrame* p) : TGGroupFrame(p, "Clusters", kVerticalFrame) {
     // Draw Clusters check box
     check_box = new TGCheckButton(this,"Draw LSV Clusters with Waveforms");
@@ -446,6 +449,7 @@ namespace display {
     button_print_info = new TGTextButton(this,"Print All Cluster Info");
     AddFrame(button_print_info, new TGLayoutHints(kLHintsTop,2,2,2,2));
   }
+
   //________________________________________________________________________________________
   EventDisplay::LSVROIFrame::LSVROIFrame(const TGCompositeFrame* p) : TGGroupFrame(p, "ROIs", kVerticalFrame) {
     // Draw ROIs check box
@@ -462,6 +466,37 @@ namespace display {
     // Print ROI info
     button_print_info = new TGTextButton(this,"Print All ROI Info");
     AddFrame(button_print_info, new TGLayoutHints(kLHintsTop,2,2,2,2));
+  }
+
+  //________________________________________________________________________________________
+  EventDisplay::GIFFrame::GIFFrame(const TGCompositeFrame* p) : TGGroupFrame(p, "Create GIF", kVerticalFrame) {
+    // Make warning label
+    label_warning = new TGLabel(this,"Warning: This feature is graphic \nintensive and very slow if \nnot done locally");
+    AddFrame(label_warning, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));
+    // Step size frame
+    TGHorizontalFrame* frame_step_size = new TGHorizontalFrame(this);
+    label_step_size = new TGLabel(frame_step_size,"Step Size:");
+    entry_step_size = new TGNumberEntry(frame_step_size, 0, 6, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEAPositive, TGNumberFormat::kNELLimitMinMax, 0.001, 9999);
+    frame_step_size->AddFrame(label_step_size,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    frame_step_size->AddFrame(entry_step_size,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    AddFrame(frame_step_size, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
+    // window size frame
+    TGHorizontalFrame* frame_window_size = new TGHorizontalFrame(this);
+    label_window_size = new TGLabel(frame_window_size,"Window Size:");
+    entry_window_size = new TGNumberEntry(frame_window_size, 0, 6, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEAPositive, TGNumberFormat::kNELLimitMinMax, 0.001, 9999);
+    frame_window_size->AddFrame(label_window_size,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    frame_window_size->AddFrame(entry_window_size,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    AddFrame(frame_window_size, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
+    // FPS frame
+    TGHorizontalFrame* frame_fps = new TGHorizontalFrame(this);
+    label_fps = new TGLabel(frame_fps,"Frames per s:");
+    entry_fps = new TGNumberEntry(frame_fps, 0, 6, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEAPositive, TGNumberFormat::kNELLimitMinMax, 0.001, 9999);
+    frame_fps->AddFrame(label_fps,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    frame_fps->AddFrame(entry_fps,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    AddFrame(frame_fps, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
+    // Record button
+    button_record = new TGTextButton(this,"Record GIF using Canvas Limits");
+    AddFrame(button_record, new TGLayoutHints(kLHintsTop,2,2,2,2));
   }
 
   //________________________________________________________________________________________
@@ -661,6 +696,22 @@ namespace display {
     int ch_id = std::stoi(str_ch_id,&sz);
     return ch_id;
 }
+
+  //________________________________________________________________________________________
+  int EventDisplay::GetMultigraphIDFromChannelID(int ch_id, TMultiGraph* mg) {
+    TList* list_graphs = mg->GetListOfGraphs();
+    const int N_channels = list_graphs->GetSize();
+    for (int i=0;i<N_channels;i++) {
+      TGraph* gr = (TGraph*)list_graphs->At(i);
+      std::string gr_name = gr->GetName();
+      int last_index = gr_name.find_last_not_of("0123456789");
+      std::string str_ch = gr_name.substr(last_index + 1);  
+      std::string::size_type sz;
+      int ch = std::stoi(str_ch,&sz);
+      if (ch==ch_id) return ch;
+    }
+    return -1;
+}
   
   //________________________________________________________________________________________
   std::string EventDisplay::TPCorOD(std::string detector) {
@@ -713,10 +764,12 @@ namespace display {
     TGTextButton* button_save_picture = new TGTextButton(comp_frame,"Save Picture of 3D Display");
     button_save_picture->Connect("Clicked()","display::EventDisplay",this,"SavePicture(=\"\")");
     comp_frame->AddFrame(button_save_picture,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
-    // Create movie button
-    TGTextButton* button_create_movie = new TGTextButton(comp_frame,"Create GIF by Current Canvas Limits");
-    button_create_movie->Connect("Clicked()","display::EventDisplay",this,"CreateMovieByAxis(\"tpc\")");
-    comp_frame->AddFrame(button_create_movie,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    // Create movie frame
+    tpc_gif_frame = new GIFFrame(comp_frame);
+    tpc_gif_frame->button_record->Connect("Clicked()","display::EventDisplay",this,"CreateMovieByAxis(\"tpc\")");
+    comp_frame->AddFrame(tpc_gif_frame,new TGLayoutHints(kLHintsTop | kLHintsExpandX));    // TGTextButton* button_create_movie = new TGTextButton(comp_frame,"Create GIF by Current Canvas Limits");
+    // button_create_movie->Connect("Clicked()","display::EventDisplay",this,"CreateMovieByAxis(\"tpc\")");
+    // comp_frame->AddFrame(button_create_movie,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
     // Set globals
     tab_frame->SetElementName("TPC");
     comp_frame->MapSubwindows();
@@ -820,65 +873,74 @@ namespace display {
 
   //________________________________________________________________________________________
   double EventDisplay::GetMaxOfMultiGraph(TMultiGraph* mg, double start_t, double end_t) {    
-    std::cout<<"Getting max of mg\n";
+    std::cout<<"Getting max of mg from "<<start_t<<" "<<end_t<<"\n";
     TList* list_graphs = mg->GetListOfGraphs();
     const int N_channels = list_graphs->GetSize();
     double max = 0;
-    int start_bin = EventDisplay::GetAxisValue("minbin");
-    std::cout<<"startbin "<<start_bin<<"\n";
-    int end_bin   = EventDisplay::GetAxisValue("maxbin");
-    std::cout<<"endbin "<<end_bin<<"\n";
+    double maxtime = 0;
+    double maxchan = 0;
+    //    int start_bin = EventDisplay::GetAxisValue("minbin");
+    //    std::cout<<"startbin "<<start_bin<<"\n";
+    //    int end_bin   = EventDisplay::GetAxisValue("maxbin");
+    //    std::cout<<"endbin "<<end_bin<<"\n";
     for (int i=0;i<N_channels;i++) {
       TGraph* gr = (TGraph*)list_graphs->At(i);
-      std::cout<<"checking graph "<<gr->GetName();
       const int nbins = gr->GetN();
+      double *x = new double[nbins];
       double *y = new double[nbins];
+      x = gr->GetX();
       y = gr->GetY();
       std::vector<double> subset;
-      for (int j=start_bin;j<end_bin;j++) {
-	if (j<0) continue;
-	if (j>=nbins) break;
+      for (int j=0;j<nbins;j++) {
+	if (x[j]<start_t) continue;
+	if (x[j]>end_t)   break;
 	subset.push_back(y[j]);
       }
-      delete y;
+      //      delete x; this causes seg fault
+      //      delete y; this causes seg fault
       double lower = fabs(*std::min_element(subset.begin(), subset.end()));
       double upper = fabs(*std::max_element(subset.begin(), subset.end()));
       double tempmax = (lower<upper)?upper:lower;
-      if (tempmax>max) max = tempmax;
+      if (tempmax>max) {
+	max = tempmax;
+      }
     }
     return max;
   }
     
   //________________________________________________________________________________________
   void EventDisplay::CreateMovieByAxis(const char* det) {
-    std::cout<<"making movie\n";
-    std::string detector = det;
+    std::string detector = "tpc";
     if (!tpc_enabled||!tpc_geo_enabled) return;
+    GIFFrame* gif_frame;
+    if (detector=="tpc") gif_frame = tpc_gif_frame; 
     int selected = 1;
-    // Check if pulse is within bounds
-    const int N = tpc_pulse_vec.size();
-    if (selected<0||selected>=N) {
-      std::cout<<"Pulse "<<selected<<" is out of bounds."<<std::endl;
-      return;
-    }
-    // Get selected pulse bounds time
-    double step_size = 0.300; //us
-    double window_size = 0.900; //us
-    double frame_length = 10; //10 ms
-    double start_us = tpc_pulse_vec.at(selected)->start_us-10*step_size;
-    double end_us = tpc_pulse_vec.at(selected)->end_us;      
-    std::ostringstream filename;
-    filename<<"tpc_r"<<tpc_run_id<<"_e"<<tpc_event_id<<"_start"<<start_us<<"_end"<<end_us<<"_step"<<step_size<<"_window"<<window_size<<".gif+"<<frame_length;
-    std::cout<<"filename "<<filename.str()<<"\n";
-    double integral_max = window_size * EventDisplay::GetMaxOfMultiGraph(tpc_chan,start_us,end_us);
+    double step_size = gif_frame->entry_step_size->GetNumber(); //us
+    double window_size = gif_frame->entry_window_size->GetNumber(); //us
+    double window_size_bins = window_size/EventDisplay::GetBinWidth(detector);
+    double fps = gif_frame->entry_fps->GetNumber();
+    int frame_length = (1./fps)*100; // convert from fps to 10s of ms
+    double start_us = EventDisplay::GetAxisValue("min");//tpc_pulse_vec.at(selected)->start_us-10*step_size;
+    double end_us =   EventDisplay::GetAxisValue("max");//tpc_pulse_vec.at(selected)->end_us;      
+    std::ostringstream filename_no_ext;
+    filename_no_ext<<detector<<"_r"<<tpc_run_id<<"_e"<<tpc_event_id<<"_start"<<start_us<<"_end"<<end_us<<"_step"<<step_size<<"_window"<<window_size;
+    std::ostringstream filename_with_ext;
+    filename_with_ext<<filename_no_ext.str()<<".gif+"<<frame_length;
+    
+    double value_max = EventDisplay::GetMaxOfMultiGraph(tpc_chan,start_us,end_us);
+    std::cout<<"max value "<<value_max<<"\n";    
+    double integral_max = window_size_bins*value_max;
+    std::cout<<"max integral "<<integral_max<<"\n";
+    integral_max = EventDisplay::AdjustIntegral(detector,integral_max);
+    std::cout<<"max integral adj "<<integral_max<<"\n";
     for (int i = 0;start_us<end_us;start_us+=step_size) {
       std::cout<<"Coloring from "<<start_us<<" to "<<start_us+window_size<<std::endl;
-      EventDisplay::ColorByStartEnd("tpc",start_us,start_us+window_size,integral_max,false);
-      gSystem->ProcessEvents();
-      //      gEve->Redraw3D(kTRUE);      
-      EventDisplay::SavePicture(filename.str().c_str());
+      EventDisplay::ColorByStartEnd(detector,start_us,start_us+window_size,integral_max/5,false);
+      //      gSystem->ProcessEvents();
+      EventDisplay::SavePicture(filename_with_ext.str().c_str());
       //      if (i++>10) break;
     }
+    std::cout<<"Complete! GIF saved as \n"<<filename_no_ext.str()<<".gif"<<std::endl;
     return;
   }
   
@@ -923,8 +985,8 @@ namespace display {
     }
     if (option=="min") return start_ns;
     if (option=="max") return end_ns;
-    if (option=="minbin") return start_bin;
-    if (option=="maxbin") return end_bin;
+    //    if (option=="minbin") return start_bin;
+    //    if (option=="maxbin") return end_bin;
     return 0.;
   }
 
@@ -958,26 +1020,25 @@ namespace display {
     int int_max_integral = 0; // palette setting requires int
     std::vector<int>    chan_id; // chan ids from mg
     std::vector<double> chan_integral; // used to fill pmts 
-    if (max_integral_override>0) 
-      // check if override was set
-      int_max_integral = max_integral_override; 
-    else {
-      // loop over channels to find max integral
-      for (int i=0;i<N_channels;i++) {
-	TGraph* gr = (TGraph*)list_graphs->At(i);
-	// Get integral
-	double integral = EventDisplay::GetGraphIntegral(gr,start_t,end_t);
-	if (detector=="tpc") integral = /*log10*/(fabs(integral))/100;
-	if (detector=="lsv"||detector=="wt") integral = fabs(integral/1.25e9);
-	chan_integral.push_back(integral);
-	if (integral>max_integral) max_integral=integral;
-	// Get channel id
-	int id = EventDisplay::GetChannelIDFromMultigraphID(i,mg_chan);
-	//std::cout<<"channel "<<i<<" integral "<<integral<<"\n";
-	chan_id.push_back(id);
-      }
-    int_max_integral = max_integral;
+    // loop over channels to find max integral
+    for (int i=0;i<N_channels;i++) {
+      TGraph* gr = (TGraph*)list_graphs->At(i);
+      // Get integral
+      double integral = EventDisplay::GetGraphIntegral(gr,start_t,end_t);
+      integral = EventDisplay::AdjustIntegral(detector,integral);
+      //      if (detector=="tpc") integral = /*log10*/(fabs(integral))/100;
+      //      if (detector=="lsv"||detector=="wt") integral = fabs(integral/1.25e9);
+      chan_integral.push_back(integral);
+      if (integral>max_integral) max_integral=integral;
+      // Get channel id
+      int id = EventDisplay::GetChannelIDFromMultigraphID(i,mg_chan);
+      //std::cout<<"channel "<<i<<" integral "<<integral<<"\n";
+      chan_id.push_back(id);
     }
+    int_max_integral = max_integral;
+    // check if override was set
+    if (max_integral_override>0) 
+      int_max_integral = max_integral_override; 
     // Set palette
     TEveRGBAPalette* pal = EventDisplay::MakePalette(int_max_integral);      
     // Get detector list
@@ -991,7 +1052,7 @@ namespace display {
       double integral = chan_integral.at(i);
       TEveGeoShape* pmt = (TEveGeoShape*)detector_list->FindChild(Form("%s_channel_%d",detector.c_str(),id));
       if (!pmt) continue;
-      //	std::cout<<"Channel "<<id<<" integral: "<<integral<<std::endl;
+      std::cout<<"Channel "<<id<<" integral: "<<integral<<std::endl;
       const UChar_t* col = pal->ColorFromValue(integral);
       //      std::cout<<"Coloring pmt "<<id<<"\n";
       pmt->SetMainColorRGB(col[0],col[1],col[2]);
@@ -1009,10 +1070,22 @@ namespace display {
     if (draw_palette) v->AddOverlayElement(po);
     gEve->Redraw3D(kTRUE);
     gEve->GetBrowser()->GetTabRight()->SetTab(0);
-    // Set globals
+    gSystem->ProcessEvents();
     if (detector=="tpc") tpc_palette = po;
     if (detector=="lsv") lsv_palette = po;
     if (detector=="wt")  wt_palette  = po;
+  }
+
+  //________________________________________________________________________________________
+  double EventDisplay::GetBinWidth(std::string detector) {
+    TGraph* gr = EventDisplay::GetSumGraph(detector);
+    int nbins = gr->GetN();
+    double* x = new double[nbins];
+    x = gr->GetX();
+    std::cout<<"limits "<<x[nbins-1]<<" "<<x[0]<<"\n";
+    double window_size = x[nbins-1]-x[0];
+    //    delete x;
+    return window_size/nbins; // returns time/bin
   }
 
   //________________________________________________________________________________________
@@ -1025,6 +1098,58 @@ namespace display {
     delete h;
     return integral;
   }
+
+  //________________________________________________________________________________________
+  double EventDisplay::AdjustIntegral(std::string detector, double integral) {
+    integral=fabs(integral);
+    if (detector=="tpc") 
+      return integral/100;
+    if (detector=="od" ||
+	detector=="lsv"||
+	detector=="wt")
+      return integral/1.25e9;
+    return 0;
+  }
+
+  //________________________________________________________________________________________
+  TGraph* EventDisplay::GetSumGraph(std::string detector) {
+    TMultiGraph* mg = GetSumMultiGraph(detector);
+    if (!mg) return NULL;
+    TList* list_graphs = mg->GetListOfGraphs();
+    for (int i=0;i<list_graphs->GetSize();i++) {
+      TGraph* gr = (TGraph*)list_graphs->At(i);
+      std::string obj_name = gr->GetName();
+      if ((obj_name.find("gr_")!= std::string::npos)&&
+	  (obj_name.find("sum")!= std::string::npos)) 
+	return gr;
+    }
+    return NULL;
+  }
+
+  //________________________________________________________________________________________
+  TMultiGraph* EventDisplay::GetSumMultiGraph(std::string detector) {
+    if (detector=="tpc") return tpc_sum;
+    if (detector=="lsv") return lsv_ampl_sum;
+    if (detector=="wt")  return wt_ampl_sum;
+    return NULL;
+  }
+
+  //________________________________________________________________________________________
+  TMultiGraph* EventDisplay::GetChannelMultiGraph(std::string detector) {
+    if (detector=="tpc") return tpc_chan;
+    if (detector=="lsv") return lsv_ampl_chan;
+    if (detector=="wt")  return wt_ampl_chan;
+    return NULL;
+  }
+
+  //________________________________________________________________________________________
+  TGraph* EventDisplay::GetChannelGraph(std::string detector, int ch) {
+    TMultiGraph* mg = GetChannelMultiGraph(detector);
+    if (!mg) return NULL;
+    int mg_id = GetMultigraphIDFromChannelID(ch,mg);
+    return (TGraph*)mg->GetListOfGraphs()->At(mg_id);
+  }
+
 
   //________________________________________________________________________________________
   TEveRGBAPalette* EventDisplay::MakePalette(int int_max_integral) {
