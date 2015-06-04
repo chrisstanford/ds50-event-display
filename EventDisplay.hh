@@ -138,12 +138,13 @@ namespace display {
       TGNumberEntry*      entry_window_size;
       TGNumberEntry*      entry_fps;
       TGTextButton*       button_record;
+      TGTextEntry*        entry_filename;
     private:
       TGLabel*            label_warning;      
       TGLabel*            label_step_size;
       TGLabel*            label_window_size;
       TGLabel*            label_fps;
-      
+      TGLabel*            label_filename;
     };
       
     // Objects
@@ -270,7 +271,7 @@ namespace display {
     TGraph* GetSumGraph(std::string detector);
     TMultiGraph* GetSumMultiGraph(std::string detector);
     TMultiGraph* GetChannelMultiGraph(std::string detector);
-    TEveRGBAPalette* MakePalette(int int_max_integral);
+    TEveRGBAPalette* MakePalette();
     TEveGeoShape* MakePMT(std::string detector, int ch_id, double size);
   };
   

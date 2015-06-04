@@ -64,25 +64,25 @@ namespace display {
     }
     // Load OD data
     if (od_display_tree) {
-      od_display_tree->SetBranchAddress("od_run_id",      &od_run_id);
-      od_display_tree->SetBranchAddress("od_event_id",    &od_event_id);
-      od_display_tree->SetBranchAddress("lsv_ampl_sum",   &lsv_ampl_sum);
-      od_display_tree->SetBranchAddress("lsv_ampl_chan",  &lsv_ampl_chan);
-      od_display_tree->SetBranchAddress("lsv_disc_sum",   &lsv_disc_sum);
-      od_display_tree->SetBranchAddress("lsv_disc_chan",  &lsv_disc_chan);
-      od_display_tree->SetBranchAddress("wt_ampl_sum",    &wt_ampl_sum);
-      od_display_tree->SetBranchAddress("wt_ampl_chan",   &wt_ampl_chan);
-      od_display_tree->SetBranchAddress("wt_disc_sum",    &wt_disc_sum);
-      od_display_tree->SetBranchAddress("wt_disc_chan",   &wt_disc_chan);
+      od_display_tree->SetBranchAddress("od_run_id",       &od_run_id);
+      od_display_tree->SetBranchAddress("od_event_id",     &od_event_id);
+      od_display_tree->SetBranchAddress("lsv_ampl_sum",    &lsv_ampl_sum);
+      od_display_tree->SetBranchAddress("lsv_ampl_chan",   &lsv_ampl_chan);
+      od_display_tree->SetBranchAddress("lsv_disc_sum",    &lsv_disc_sum);
+      od_display_tree->SetBranchAddress("lsv_disc_chan",   &lsv_disc_chan);
+      od_display_tree->SetBranchAddress("wt_ampl_sum",     &wt_ampl_sum);
+      od_display_tree->SetBranchAddress("wt_ampl_chan",    &wt_ampl_chan);
+      od_display_tree->SetBranchAddress("wt_disc_sum",     &wt_disc_sum);
+      od_display_tree->SetBranchAddress("wt_disc_chan",    &wt_disc_chan);
       od_display_tree->SetBranchAddress("lsv_cluster_tree",&lsv_cluster_tree);
       od_display_tree->SetBranchAddress("lsv_roi_tree",    &lsv_roi_tree);
     }
     std::cout<<"TPC enabled: "         <<tpc_enabled    <<std::endl;
     std::cout<<"LSV enabled: "         <<lsv_enabled    <<std::endl;
-    std::cout<<"WT  enabled: "          <<wt_enabled     <<std::endl;
+    std::cout<<"WT  enabled: "          <<wt_enabled    <<std::endl;
     std::cout<<"TPC geometry enabled: "<<tpc_geo_enabled<<std::endl;
     std::cout<<"LSV geometry enabled: "<<lsv_geo_enabled<<std::endl;
-    std::cout<<"WT  geometry enabled: " <<wt_geo_enabled <<std::endl;
+    std::cout<<"WT  geometry enabled: " <<wt_geo_enabled<<std::endl;
   }
 
   //________________________________________________________________________________________
@@ -245,6 +245,7 @@ namespace display {
     std::string title = os.str();
     GetBrowser()->GetMainFrame()->SetWindowName(title.c_str());
   }
+
   //________________________________________________________________________________________
   void EventDisplay::Create() {
     // Load first event in display tree
@@ -494,6 +495,13 @@ namespace display {
     frame_fps->AddFrame(label_fps,new TGLayoutHints(kLHintsLeft,2,2,2,2));
     frame_fps->AddFrame(entry_fps,new TGLayoutHints(kLHintsLeft,2,2,2,2));
     AddFrame(frame_fps, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
+    // Filename frame
+    TGHorizontalFrame* frame_filename = new TGHorizontalFrame(this);
+    label_filename = new TGLabel(frame_filename,"Filename override");
+    entry_filename = new TGTextEntry(frame_filename, "default");
+    frame_filename->AddFrame(label_filename,new TGLayoutHints(kLHintsLeft,2,2,2,2));
+    frame_filename->AddFrame(entry_filename,new TGLayoutHints(kLHintsLeft | kLHintsExpandX,2,2,2,2));
+    AddFrame(frame_filename, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
     // Record button
     button_record = new TGTextButton(this,"Record GIF using Canvas Limits");
     AddFrame(button_record, new TGLayoutHints(kLHintsTop,2,2,2,2));
@@ -766,10 +774,8 @@ namespace display {
     comp_frame->AddFrame(button_save_picture,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
     // Create movie frame
     tpc_gif_frame = new GIFFrame(comp_frame);
-    tpc_gif_frame->button_record->Connect("Clicked()","display::EventDisplay",this,"CreateMovieByAxis(\"tpc\")");
-    comp_frame->AddFrame(tpc_gif_frame,new TGLayoutHints(kLHintsTop | kLHintsExpandX));    // TGTextButton* button_create_movie = new TGTextButton(comp_frame,"Create GIF by Current Canvas Limits");
-    // button_create_movie->Connect("Clicked()","display::EventDisplay",this,"CreateMovieByAxis(\"tpc\")");
-    // comp_frame->AddFrame(button_create_movie,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    tpc_gif_frame->button_record->Connect("Clicked()","display::EventDisplay",this,"CreateMovieByAxis(=\"tpc\")");
+    comp_frame->AddFrame(tpc_gif_frame,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
     // Set globals
     tab_frame->SetElementName("TPC");
     comp_frame->MapSubwindows();
@@ -791,12 +797,18 @@ namespace display {
     TGTextButton* button_save_picture = new TGTextButton(comp_frame,"Save Picture of 3D Display");
     button_save_picture->Connect("Clicked()","display::EventDisplay",this,"SavePicture(=\"\")");
     comp_frame->AddFrame(button_save_picture,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    // Create movie frame
+    GIFFrame* gif_frame = new GIFFrame(comp_frame);
+    gif_frame->button_record->Connect("Clicked()","display::EventDisplay",this,Form("CreateMovieByAxis(=\"%s\")",detector.c_str()));
+    comp_frame->AddFrame(gif_frame,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
     // Set globals
     if (detector=="lsv") {
       tab_frame->SetElementName("LSV");
+      lsv_gif_frame = gif_frame;
     }
     if (detector=="wt") {
       tab_frame->SetElementName("WT");
+      wt_gif_frame = gif_frame;
     }
     comp_frame->MapSubwindows();
     comp_frame->Layout();
@@ -873,7 +885,7 @@ namespace display {
 
   //________________________________________________________________________________________
   double EventDisplay::GetMaxOfMultiGraph(TMultiGraph* mg, double start_t, double end_t) {    
-    std::cout<<"Getting max of mg from "<<start_t<<" "<<end_t<<"\n";
+    //    std::cout<<"Getting max of mg from "<<start_t<<" "<<end_t<<"\n";
     TList* list_graphs = mg->GetListOfGraphs();
     const int N_channels = list_graphs->GetSize();
     double max = 0;
@@ -905,16 +917,34 @@ namespace display {
 	max = tempmax;
       }
     }
+    std::cout<<"Max of muligraph in region "<<max<<"\n";
     return max;
   }
     
   //________________________________________________________________________________________
   void EventDisplay::CreateMovieByAxis(const char* det) {
-    std::string detector = "tpc";
-    if (!tpc_enabled||!tpc_geo_enabled) return;
+    std::string detector = det;
+    if (TPCorOD(detector)!=EventDisplay::GetDetectorInActivePad()) {
+      std::cout<<"Requested detector is not drawn in current canvas."<<std::endl;
+      return;
+    }    
+    if (detector=="tpc"&&(!tpc_enabled||!tpc_geo_enabled)) return;
+    if (detector=="lsv"&&(!lsv_enabled||!lsv_geo_enabled)) return;
+    if (detector=="wt" &&(!wt_enabled ||!wt_geo_enabled))  return;
     GIFFrame* gif_frame;
-    if (detector=="tpc") gif_frame = tpc_gif_frame; 
-    int selected = 1;
+    TMultiGraph* mg_chan;
+    if (detector=="tpc") {
+      gif_frame = tpc_gif_frame; 
+      mg_chan   = tpc_chan;
+    }
+    if (detector=="lsv") {
+      gif_frame = lsv_gif_frame; 
+      mg_chan   = lsv_ampl_chan;
+    }
+    if (detector=="wt") {
+      gif_frame = wt_gif_frame; 
+      mg_chan   = wt_ampl_chan;
+    }
     double step_size = gif_frame->entry_step_size->GetNumber(); //us
     double window_size = gif_frame->entry_window_size->GetNumber(); //us
     double window_size_bins = window_size/EventDisplay::GetBinWidth(detector);
@@ -923,22 +953,23 @@ namespace display {
     double start_us = EventDisplay::GetAxisValue("min");//tpc_pulse_vec.at(selected)->start_us-10*step_size;
     double end_us =   EventDisplay::GetAxisValue("max");//tpc_pulse_vec.at(selected)->end_us;      
     std::ostringstream filename_no_ext;
-    filename_no_ext<<detector<<"_r"<<tpc_run_id<<"_e"<<tpc_event_id<<"_start"<<start_us<<"_end"<<end_us<<"_step"<<step_size<<"_window"<<window_size;
+    filename_no_ext<<detector<</*"_r"<<tpc_run_id<<"_e"<<tpc_event_id<<*/"_start"<<start_us<<"_end"<<end_us<<"_step"<<step_size<<"_window"<<window_size;    
+    std::string str_filename = gif_frame->entry_filename->GetText();
+    if (str_filename=="default") 
+      str_filename = filename_no_ext.str();	   
     std::ostringstream filename_with_ext;
-    filename_with_ext<<filename_no_ext.str()<<".gif+"<<frame_length;
-    
-    double value_max = EventDisplay::GetMaxOfMultiGraph(tpc_chan,start_us,end_us);
-    std::cout<<"max value "<<value_max<<"\n";    
+    filename_with_ext<<str_filename<<".gif+"<<frame_length;
+    double value_max = EventDisplay::GetMaxOfMultiGraph(mg_chan,start_us,end_us);
+    //    std::cout<<"max value "<<value_max<<"\n";    
     double integral_max = window_size_bins*value_max;
-    std::cout<<"max integral "<<integral_max<<"\n";
+    //    std::cout<<"max integral "<<integral_max<<"\n";
     integral_max = EventDisplay::AdjustIntegral(detector,integral_max);
-    std::cout<<"max integral adj "<<integral_max<<"\n";
+    std::cout<<"Max integral Adjusted "<<integral_max<<"\n";
+    std::cout<<"Limits: "<<start_us<<" to "<<end_us<<"\n";
     for (int i = 0;start_us<end_us;start_us+=step_size) {
       std::cout<<"Coloring from "<<start_us<<" to "<<start_us+window_size<<std::endl;
-      EventDisplay::ColorByStartEnd(detector,start_us,start_us+window_size,integral_max/5,false);
-      //      gSystem->ProcessEvents();
+      EventDisplay::ColorByStartEnd(detector,start_us,start_us+window_size,integral_max/*/5*/,false);
       EventDisplay::SavePicture(filename_with_ext.str().c_str());
-      //      if (i++>10) break;
     }
     std::cout<<"Complete! GIF saved as \n"<<filename_no_ext.str()<<".gif"<<std::endl;
     return;
@@ -949,7 +980,8 @@ namespace display {
     std::string filename = fname;
     if (filename == "") filename = "ds50_3D.png";
     TGLViewer* glv = GetDefaultGLViewer(); 
-    std::cout<<"Saving "<<filename<<std::endl;
+    if (!glv) return;
+    //    std::cout<<"Saving "<<filename<<std::endl;
     glv->SavePictureUsingBB(filename.c_str());
   }
 
@@ -1017,7 +1049,6 @@ namespace display {
     const int N_channels = list_graphs->GetSize();
     // Get channel integrals and max integral
     double max_integral  = 0; // needed to set palette scale
-    int int_max_integral = 0; // palette setting requires int
     std::vector<int>    chan_id; // chan ids from mg
     std::vector<double> chan_integral; // used to fill pmts 
     // loop over channels to find max integral
@@ -1035,12 +1066,12 @@ namespace display {
       //std::cout<<"channel "<<i<<" integral "<<integral<<"\n";
       chan_id.push_back(id);
     }
-    int_max_integral = max_integral;
-    // check if override was set
+    std::cout<<"Max integral in region: "<<max_integral<<std::endl;
+    // Check if override was set
     if (max_integral_override>0) 
-      int_max_integral = max_integral_override; 
+      max_integral = max_integral_override; 
     // Set palette
-    TEveRGBAPalette* pal = EventDisplay::MakePalette(int_max_integral);      
+    TEveRGBAPalette* pal = EventDisplay::MakePalette();      
     // Get detector list
     TEveElementList* detector_list;
     if (detector=="tpc") detector_list = tpc_geometry; 
@@ -1052,12 +1083,13 @@ namespace display {
       double integral = chan_integral.at(i);
       TEveGeoShape* pmt = (TEveGeoShape*)detector_list->FindChild(Form("%s_channel_%d",detector.c_str(),id));
       if (!pmt) continue;
-      std::cout<<"Channel "<<id<<" integral: "<<integral<<std::endl;
-      const UChar_t* col = pal->ColorFromValue(integral);
+      //      std::cout<<"Channel "<<id<<" integral: "<<integral<<std::endl;
+      const UChar_t* col = pal->ColorFromValue(integral/max_integral*100);
       //      std::cout<<"Coloring pmt "<<id<<"\n";
       pmt->SetMainColorRGB(col[0],col[1],col[2]);
     }
-    TGLViewer* v = gEve->GetDefaultGLViewer();
+    TGLViewer* glv = gEve->GetDefaultGLViewer();
+    if (!glv) return;
     // Get palette overlay
     double po_x = 0.7;
     double po_y; // detector dependent
@@ -1067,7 +1099,7 @@ namespace display {
     if (detector=="lsv") {delete lsv_palette; po_y = 0.15;} 
     if (detector=="wt")  {delete wt_palette;  po_y = 0.05;} 
     TEveRGBAPaletteOverlay* po = new TEveRGBAPaletteOverlay(pal, po_x, po_y, width, height);
-    if (draw_palette) v->AddOverlayElement(po);
+    if (draw_palette) glv->AddOverlayElement(po);
     gEve->Redraw3D(kTRUE);
     gEve->GetBrowser()->GetTabRight()->SetTab(0);
     gSystem->ProcessEvents();
@@ -1082,7 +1114,7 @@ namespace display {
     int nbins = gr->GetN();
     double* x = new double[nbins];
     x = gr->GetX();
-    std::cout<<"limits "<<x[nbins-1]<<" "<<x[0]<<"\n";
+    //    std::cout<<"limits "<<x[nbins-1]<<" "<<x[0]<<"\n";
     double window_size = x[nbins-1]-x[0];
     //    delete x;
     return window_size/nbins; // returns time/bin
@@ -1152,23 +1184,15 @@ namespace display {
 
 
   //________________________________________________________________________________________
-  TEveRGBAPalette* EventDisplay::MakePalette(int int_max_integral) {
+  TEveRGBAPalette* EventDisplay::MakePalette() {
     const int NRGBs = 6;
-    const int NCont = 75;
+    const int NCont = 100;
     double stops[NRGBs] = { 0.00, 0.05, 0.34, 0.61, 0.84, 1.00 };
     double red[NRGBs]   = { 0.00, 0.00, 0.00, 0.87, 1.00, 0.51 };
     double green[NRGBs] = { 0.00, 0.00, 0.81, 1.00, 0.20, 0.00 };
     double blue[NRGBs]  = { 0.30, 0.51, 1.00, 0.12, 0.00, 0.00 };
     TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
-    TEveRGBAPalette *pal = new TEveRGBAPalette(0,int_max_integral+1);
-    // const Int_t NRGBs = 3;
-    // const Int_t NCont = 50;
-    // Double_t stops[NRGBs] = { 0.05, 0.50, 1.00 };
-    // Double_t red[NRGBs]   = { 0.1, 1.00, 1.00 };
-    // Double_t green[NRGBs] = { 0.1, 1.00, 0.00 };
-    // Double_t blue[NRGBs]  = { 0.1, 0.00, 0.00 };
-    // TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
-    // TEveRGBAPalette *pal = new TEveRGBAPalette(0,int_max_integral+1);
+    TEveRGBAPalette *pal = new TEveRGBAPalette(0,100);
     return pal;
   }
 
