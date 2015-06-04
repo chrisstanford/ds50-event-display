@@ -138,6 +138,7 @@ namespace display {
       TGNumberEntry*      entry_window_size;
       TGNumberEntry*      entry_fps;
       TGTextButton*       button_record;
+      TGCheckButton*      check_box_log;
       TGTextEntry*        entry_filename;
     private:
       TGLabel*            label_warning;      

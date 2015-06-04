@@ -186,7 +186,7 @@ namespace display {
       od_display_tree->GetEntry(id);
       current_event_id=id;
       // Fill title
-      os<<"r"<<std::setw(6)<<std::setfill('0')<<od_run_id
+      os<<"od r"<<std::setw(6)<<std::setfill('0')<<od_run_id
 	<<"e"<<std::setw(6)<<std::setfill('0')<<od_event_id;
       // Set Channel Colors
       display::SetChannelColors("lsv",lsv_ampl_chan);
@@ -495,6 +495,10 @@ namespace display {
     frame_fps->AddFrame(label_fps,new TGLayoutHints(kLHintsLeft,2,2,2,2));
     frame_fps->AddFrame(entry_fps,new TGLayoutHints(kLHintsLeft,2,2,2,2));
     AddFrame(frame_fps, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
+    // Use log scaling check box
+    check_box_log = new TGCheckButton(this,"Use log scaling");
+    check_box_log->SetState(kButtonUp);
+    AddFrame(check_box_log, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));    
     // Filename frame
     TGHorizontalFrame* frame_filename = new TGHorizontalFrame(this);
     label_filename = new TGLabel(frame_filename,"Filename override");
@@ -751,7 +755,7 @@ namespace display {
   void EventDisplay::CreateOptionsTab() {
     TEveWindowSlot* slot = TEveWindow::CreateWindowInTab(gEve->GetBrowser()->GetTabLeft());
     tab_options = slot->MakeTab();
-    tab_options->SetElementName("Options");
+    tab_options->SetElementName("3D Options");
     tab_options->SetShowTitleBar(kFALSE);
     if (tpc_enabled) CreateOptionsTPCTab();
     if (lsv_enabled) CreateOptionsODTab("lsv");
@@ -885,16 +889,11 @@ namespace display {
 
   //________________________________________________________________________________________
   double EventDisplay::GetMaxOfMultiGraph(TMultiGraph* mg, double start_t, double end_t) {    
-    //    std::cout<<"Getting max of mg from "<<start_t<<" "<<end_t<<"\n";
     TList* list_graphs = mg->GetListOfGraphs();
     const int N_channels = list_graphs->GetSize();
     double max = 0;
     double maxtime = 0;
     double maxchan = 0;
-    //    int start_bin = EventDisplay::GetAxisValue("minbin");
-    //    std::cout<<"startbin "<<start_bin<<"\n";
-    //    int end_bin   = EventDisplay::GetAxisValue("maxbin");
-    //    std::cout<<"endbin "<<end_bin<<"\n";
     for (int i=0;i<N_channels;i++) {
       TGraph* gr = (TGraph*)list_graphs->At(i);
       const int nbins = gr->GetN();
@@ -908,8 +907,8 @@ namespace display {
 	if (x[j]>end_t)   break;
 	subset.push_back(y[j]);
       }
-      //      delete x; this causes seg fault
-      //      delete y; this causes seg fault
+      //      delete x; //this causes seg fault
+      //      delete y; //this causes seg fault
       double lower = fabs(*std::min_element(subset.begin(), subset.end()));
       double upper = fabs(*std::max_element(subset.begin(), subset.end()));
       double tempmax = (lower<upper)?upper:lower;
@@ -933,38 +932,43 @@ namespace display {
     if (detector=="wt" &&(!wt_enabled ||!wt_geo_enabled))  return;
     GIFFrame* gif_frame;
     TMultiGraph* mg_chan;
+    int run_id, event_id;
     if (detector=="tpc") {
       gif_frame = tpc_gif_frame; 
       mg_chan   = tpc_chan;
+      run_id    = tpc_run_id;
+      event_id  = tpc_event_id;
     }
     if (detector=="lsv") {
       gif_frame = lsv_gif_frame; 
       mg_chan   = lsv_ampl_chan;
+      run_id    = od_run_id;
+      event_id  = od_event_id;
     }
     if (detector=="wt") {
       gif_frame = wt_gif_frame; 
       mg_chan   = wt_ampl_chan;
+      run_id    = od_run_id;
+      event_id  = od_event_id;
     }
     double step_size = gif_frame->entry_step_size->GetNumber(); //us
     double window_size = gif_frame->entry_window_size->GetNumber(); //us
     double window_size_bins = window_size/EventDisplay::GetBinWidth(detector);
     double fps = gif_frame->entry_fps->GetNumber();
     int frame_length = (1./fps)*100; // convert from fps to 10s of ms
-    double start_us = EventDisplay::GetAxisValue("min");//tpc_pulse_vec.at(selected)->start_us-10*step_size;
-    double end_us =   EventDisplay::GetAxisValue("max");//tpc_pulse_vec.at(selected)->end_us;      
+    double start_us = EventDisplay::GetAxisValue("min");
+    double end_us =   EventDisplay::GetAxisValue("max");
     std::ostringstream filename_no_ext;
-    filename_no_ext<<detector<</*"_r"<<tpc_run_id<<"_e"<<tpc_event_id<<*/"_start"<<start_us<<"_end"<<end_us<<"_step"<<step_size<<"_window"<<window_size;    
+    filename_no_ext<<detector<<"_r"<<run_id<<"_e"<<event_id<<"_start"<<start_us<<"_end"<<end_us<<"_step"<<step_size<<"_window"<<window_size<<"_fps"<<fps;    
     std::string str_filename = gif_frame->entry_filename->GetText();
     if (str_filename=="default") 
       str_filename = filename_no_ext.str();	   
     std::ostringstream filename_with_ext;
     filename_with_ext<<str_filename<<".gif+"<<frame_length;
     double value_max = EventDisplay::GetMaxOfMultiGraph(mg_chan,start_us,end_us);
-    //    std::cout<<"max value "<<value_max<<"\n";    
     double integral_max = window_size_bins*value_max;
-    //    std::cout<<"max integral "<<integral_max<<"\n";
     integral_max = EventDisplay::AdjustIntegral(detector,integral_max);
-    std::cout<<"Max integral Adjusted "<<integral_max<<"\n";
+    //    std::cout<<"Max integral Adjusted "<<integral_max<<"\n";
     std::cout<<"Limits: "<<start_us<<" to "<<end_us<<"\n";
     for (int i = 0;start_us<end_us;start_us+=step_size) {
       std::cout<<"Coloring from "<<start_us<<" to "<<start_us+window_size<<std::endl;
@@ -1057,8 +1061,6 @@ namespace display {
       // Get integral
       double integral = EventDisplay::GetGraphIntegral(gr,start_t,end_t);
       integral = EventDisplay::AdjustIntegral(detector,integral);
-      //      if (detector=="tpc") integral = /*log10*/(fabs(integral))/100;
-      //      if (detector=="lsv"||detector=="wt") integral = fabs(integral/1.25e9);
       chan_integral.push_back(integral);
       if (integral>max_integral) max_integral=integral;
       // Get channel id
@@ -1134,13 +1136,34 @@ namespace display {
   //________________________________________________________________________________________
   double EventDisplay::AdjustIntegral(std::string detector, double integral) {
     integral=fabs(integral);
-    if (detector=="tpc") 
-      return integral/100;
-    if (detector=="od" ||
-	detector=="lsv"||
-	detector=="wt")
-      return integral/1.25e9;
-    return 0;
+    if (integral<0.0001) integral = 0.0001; // prevent log(0)
+    if (detector=="tpc") {
+      if (tpc_gif_frame->check_box_log->IsOn()) {
+	integral = log10(integral);
+	if (integral<0) integral = 0.;
+	return integral;
+      }
+      else
+	return integral;
+    }
+    if (detector=="lsv") {
+      if (lsv_gif_frame->check_box_log->IsOn()) {
+	integral = log10(integral);
+	if (integral<0) integral = 0.;
+	return integral;
+      }
+      else
+	return integral;
+    }
+    if (detector=="wt") {
+      if (wt_gif_frame->check_box_log->IsOn()) {
+	integral = log10(integral);
+	if (integral<0) integral = 0.;
+	return integral;
+      }
+      else
+	return integral;
+    }
   }
 
   //________________________________________________________________________________________
