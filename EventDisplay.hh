@@ -68,6 +68,7 @@ namespace display {
   class EventDisplay : public TEveManager {
   public:
     explicit EventDisplay(std::string, std::string);
+    explicit EventDisplay(std::string directory);
     void Create();
 
     // Functions called by buttons
@@ -160,10 +161,10 @@ namespace display {
     TFile*              f1;
     TFile*              f2;
     //                  main tree
-    TTree*              od_display_tree;
-    TTree*              od_settings_tree;
-    TTree*              tpc_display_tree;
-    TTree*              tpc_settings_tree;
+    TChain*              od_display_tree;
+    TChain*              od_settings_tree;
+    TChain*              tpc_display_tree;
+    TChain*              tpc_settings_tree;
      
     //                  main variables
     int                 od_run_id;
@@ -240,6 +241,8 @@ namespace display {
     TEveRGBAPaletteOverlay* wt_palette;
       
     void LoadFile(std::string, std::string); 
+    void LoadDirectory(std::string directory); 
+    void SetBranchAddresses();
     void LoadEvent(int); 
     void DrawTPCPulses(int ch);     
     void DrawTPCSPEs(int ch);

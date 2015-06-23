@@ -15,6 +15,18 @@ namespace display {
     LoadFile(filepath1,filepath2);
   }
 
+  EventDisplay::EventDisplay(std::string directory) :
+    TEveManager(1024,768,kTRUE,"FIV"),
+    tpc_enabled(false),
+    lsv_enabled(false),
+    wt_enabled(false),
+    tpc_geo_enabled(false),
+    lsv_geo_enabled(false),
+    wt_geo_enabled(false)
+  {
+    LoadDirectory(directory);
+  }
+
   ///////////////////////////////////////
   /////////// Initialization ////////////
   ///////////////////////////////////////
@@ -25,20 +37,77 @@ namespace display {
     TTree* t;
     // Get TPC tree
     if (tpc_filepath!="") {
-      f1 = TFile::Open(tpc_filepath.c_str());
-      f1->GetObject("display/tpc_settings_tree",t);
-      if (t) tpc_settings_tree = t;
-      f1->GetObject("display/tpc_display_tree",t);
-      if (t) tpc_display_tree = t; 
+      tpc_settings_tree = new TChain("display/tpc_settings_tree");
+      tpc_display_tree  = new TChain("display/tpc_display_tree");
+      tpc_settings_tree->Add(tpc_filepath.c_str());
+      tpc_display_tree->Add(tpc_filepath.c_str());
+      // f1 = TFile::Open(tpc_filepath.c_str());
+      // f1->GetObject("display/tpc_settings_tree",t);
+      // if (t) tpc_settings_tree = t;
+      // f1->GetObject("display/tpc_display_tree",t);
+      // if (t) tpc_display_tree = t; 
     }
     // Get OD tree
     if (od_filepath!="") {
-      f2 = TFile::Open(od_filepath.c_str());
-      f2->GetObject("display/od_settings_tree",t);
-      if (t) od_settings_tree = t;
-      f2->GetObject("display/od_display_tree",t);
-      if (t) od_display_tree = t; 
+      od_settings_tree = new TChain("display/od_settings_tree");
+      od_display_tree  = new TChain("display/od_display_tree");
+      od_settings_tree->Add(od_filepath.c_str());
+      od_display_tree->Add(od_filepath.c_str());
+      // f2 = TFile::Open(od_filepath.c_str());
+      // f2->GetObject("display/od_settings_tree",t);
+      // if (t) od_settings_tree = t;
+      // f2->GetObject("display/od_display_tree",t);
+      // if (t) od_display_tree = t; 
     }
+    EventDisplay::SetBranchAddresses();
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::LoadDirectory(std::string directory) {
+    std::cout<<"Loading directory "<<directory<<std::endl;
+    // Make chain out of all files in directory. Currently only works for tpc
+    TChain* settings_chain = new TChain("display/tpc_settings_tree");
+    TChain* display_chain = new TChain("display/tpc_display_tree");
+    char* dir = gSystem->ExpandPathName(directory.c_str());
+    void* dirp = gSystem->OpenDirectory(dir);
+    const char* filename;
+    TString str, sub;
+    std::ostringstream os;
+    while((filename = (char*)gSystem->GetDirEntry(dirp))) {
+      str = filename;
+      if(!str.BeginsWith("tpc"))
+	continue;
+      if(!str.EndsWith(".root"))
+	continue;
+      TString filepath = directory+"/";
+      filepath+=str;
+      std::cout<<"Adding "<<filepath<<" to chain.\n";
+      settings_chain->Add(filepath);
+      display_chain->Add(filepath);
+    }
+    if (!settings_chain || !display_chain) {
+      std::cout<<"\nError: No valid TPC events found in "<<directory<<".\n\n";
+      return;
+    }
+    // The TChain::GetEntries command generates a tree in the TChain data structure
+    //    settings_chain->GetEntries();
+    //    display_chain->GetEntries();
+    //    tpc_settings_tree = settings_chain->GetTree();
+    //    tpc_display_tree = display_chain->GetTree();
+    tpc_settings_tree = settings_chain;
+    tpc_display_tree = display_chain;
+    std::cout<<"Found a total of "<<tpc_display_tree->GetEntries()<<" events."<<std::endl; 
+    if (!tpc_settings_tree || !tpc_display_tree) {
+      std::cout<<"No display trees were found"<<std::endl;
+      return;
+    }
+    //    std::cout<<tpc_settings_tree->GetEntries()<<"\n";
+    //    std::cout<<tpc_display_tree->GetEntries()<<"\n";
+    EventDisplay::SetBranchAddresses();
+  }  
+
+  //________________________________________________________________________________________
+  void EventDisplay::SetBranchAddresses() {
     // Load TPC Settings
     if (tpc_settings_tree) {
       tpc_settings_tree->SetBranchAddress("tpc_enabled",    &tpc_enabled);
@@ -1339,37 +1408,11 @@ int main(int argc, char* argv[]) {
     PrintUsage();
     return 0;
   }
-  // Verify input files. Make sure root files contain 
-  // TTrees that can be read by the event display
-  TFile* f;
-  TTree* t;
-  std::string tpc_filepath="";
-  std::string  od_filepath="";
-  // Verify first file
-  if (argc>1) {
-    f = TFile::Open(argv[1]);
-    f->GetObject("display/tpc_display_tree",t);
-    if (t) tpc_filepath = argv[1];
-    if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in TPC tree. Aborting.\n\n";return 0;}
-    f->GetObject("display/od_display_tree",t);
-    if (t) od_filepath = argv[1]; 
-    if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in OD tree. Aborting.\n\n";return 0;}
-    f->Close();
-  }
-  if (argc>2) {
-    f = TFile::Open(argv[2]);
-    f->GetObject("display/tpc_display_tree",t);
-    if (t) tpc_filepath = argv[2];
-    if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in TPC tree. Aborting.\n\n";return 0;}
-    f->GetObject("display/od_display_tree",t);
-    if (t) od_filepath = argv[2]; 
-    if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in OD tree. Aborting.\n\n";return 0;}
-    f->Close();
-  }
-  if (tpc_filepath==""&&od_filepath=="") {
-    std::cout<<"\nError: No events found. Aborting.\n\n";
-    return 0;
-  }
+  std::string arg1;
+  std::string arg2;
+  if (argc>1) arg1 = argv[1];
+  if (argc>2) arg2 = argv[2];
+  
   // Set up environment
   gEnv->SetValue("Gui.IconFont",  "-*-helvetica-medium-r-*-*-14-*-*-*-*-*-iso8859-1");
   gEnv->SetValue("Gui.StatusFont","-*-helvetica-medium-r-*-*-14-*-*-*-*-*-iso8859-1");
@@ -1381,7 +1424,53 @@ int main(int argc, char* argv[]) {
   // Set up display
   display::EventDisplay* sed;
   std::cout<<"Initializing display."<<std::endl;
-  sed = new display::EventDisplay(tpc_filepath,od_filepath);
+
+  // There are currently two modes the event display can be run in.
+  // 1. Single display file mode: 
+  //           ./EventDisplay tpc_display_output od_display_output
+  // 2. Directory mode (combines all tpc display files in a given directory)
+  //           ./EventDisplay -d /path/to/tpc/display/files/directory
+  //
+  // We check the value of the first argument to determine the mode
+  if (arg1 == "-d") {
+    // Open the display with the directory path
+    sed = new display::EventDisplay(arg2);
+  } else {
+    // Verify input files. Make sure root files contain 
+    // TTrees that can be read by the event display
+    TFile* f;
+    TTree* t;
+    std::string tpc_filepath="";
+    std::string  od_filepath="";
+    // Verify first file
+    if (argc>1) {
+      f = TFile::Open(arg1.c_str());
+      f->GetObject("display/tpc_display_tree",t);
+      if (t) tpc_filepath = arg1;
+      if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in TPC tree. Aborting.\n\n";return 0;}
+      f->GetObject("display/od_display_tree",t);
+      if (t) od_filepath = arg1; 
+      if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in OD tree. Aborting.\n\n";return 0;}
+      f->Close();
+    }
+    // Verify second file
+    if (argc>2) {
+      f = TFile::Open(arg2.c_str());
+      f->GetObject("display/tpc_display_tree",t);
+      if (t) tpc_filepath = arg2;
+      if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in TPC tree. Aborting.\n\n";return 0;}
+      f->GetObject("display/od_display_tree",t);
+      if (t) od_filepath = arg2; 
+      if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in OD tree. Aborting.\n\n";return 0;}
+      f->Close();
+    }
+    if (tpc_filepath==""&&od_filepath=="") {
+      std::cout<<"\nError: No events found. Aborting.\n\n";
+      return 0;
+    }
+    // Open the display
+    sed = new display::EventDisplay(tpc_filepath,od_filepath);
+  }
   std::cout<<"Loaded display."<<std::endl;
   if (!sed) {
     std::cout<<"Error during initialization."<<std::endl;
