@@ -11,7 +11,11 @@ namespace display {
     lsv_geo_enabled(false),
     wt_geo_enabled(false)
   {
-    //      std::cout<<"Please ignore libGL errors."<<std::endl;
+    if (tpc_settings_tree) std::cout<<tpc_settings_tree<<" tpctreeexists1!8\n";
+    if (tpc_display_tree) std::cout<<"tpctreeexists2!8\n";
+    if (od_settings_tree) std::cout<<od_settings_tree<<" odtreeexists1!8\n";
+    if (od_display_tree) std::cout<<od_display_tree<<" odtreeexists2!8\n";
+    std::cout<<"Please ignore libGL errors."<<std::endl;
     LoadFile(filepath1,filepath2);
   }
 
@@ -907,6 +911,10 @@ namespace display {
   void EventDisplay::CreateGeometry() {
     // Set camera orientation         
     GetDefaultGLViewer()->SetCurrentCamera(TGLViewer::kCameraPerspXOY);
+    //#define WHITE_BACKGROUND
+#ifdef WHITE_BACKGROUND
+    GetDefaultGLViewer()->SetClearColor(kWhite);
+#endif
     // Create the geometries
     if (tpc_geo_enabled) CreateDetector("tpc");
     if (lsv_geo_enabled) CreateDetector("lsv");
@@ -1277,12 +1285,21 @@ namespace display {
 
   //________________________________________________________________________________________
   TEveRGBAPalette* EventDisplay::MakePalette() {
+#ifdef WHITE_BACKGROUND
+    const int NRGBs = 4;
+    const int NCont = 100;
+    double stops[NRGBs] = { 0.00, 0.40, 0.60, 1.00 };
+    double red[NRGBs]   = { 0.15, 1.00, 1.00, 1.00 };
+    double green[NRGBs] = { 0.15, 1.00, 1.00, 1.00 };
+    double blue[NRGBs]  = { 0.15, 1.00, 1.00, 1.00 };
+#else
     const int NRGBs = 6;
     const int NCont = 100;
     double stops[NRGBs] = { 0.00, 0.05, 0.34, 0.61, 0.84, 1.00 };
     double red[NRGBs]   = { 0.00, 0.00, 0.00, 0.87, 1.00, 0.51 };
     double green[NRGBs] = { 0.00, 0.00, 0.81, 1.00, 0.20, 0.00 };
     double blue[NRGBs]  = { 0.30, 0.51, 1.00, 0.12, 0.00, 0.00 };
+#endif
     TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
     TEveRGBAPalette *pal = new TEveRGBAPalette(0,100);
     return pal;
@@ -1398,7 +1415,7 @@ void PrintUsage() {
   std::cout<<"./EventDisplay tpc_display_output.root"<<std::endl;
   std::cout<<"./EventDisplay od_display_output.root"<<std::endl;
   std::cout<<"./EventDisplay tpc_display_output.root od_display_output.root"<<std::endl;
-  std::cout<<"./EventDisplay od_display_output.root tpc_display_output.root"<<std::endl;
+  std::cout<<"./EventDisplay -d /directory/containing/tpc/display/output/files"<<std::endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -1444,28 +1461,31 @@ int main(int argc, char* argv[]) {
     std::string  od_filepath="";
     // Verify first file
     if (argc>1) {
-      f = TFile::Open(arg1.c_str());
-      f->GetObject("display/tpc_display_tree",t);
-      if (t) tpc_filepath = arg1;
-      if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in TPC tree. Aborting.\n\n";return 0;}
-      f->GetObject("display/od_display_tree",t);
-      if (t) od_filepath = arg1; 
-      if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in OD tree. Aborting.\n\n";return 0;}
-      f->Close();
+      if (arg1.find("tpc") != std::string::npos) tpc_filepath = arg1;
+      else if (arg1.find("od") != std::string::npos) od_filepath = arg1;
+      else {
+	std::cout<<"\nError. Input file "<<arg1<<" not recognized." 
+	  "Must contain \"tpc\" or \"od\" in the file name."<<std::endl; 
+	return 0;
+      }
+      // The commented way of doing it caused a crash when just an od file was given
+      // f = new TFile(arg1.c_str(),"UPDATE");
+      // if (f->FindObjectAny("tpc_display_tree")) tpc_filepath = arg1;
+      // if (f->FindObjectAny("od_display_tree"))  od_filepath  = arg1;
+      // f->Close();
     }
     // Verify second file
     if (argc>2) {
-      f = TFile::Open(arg2.c_str());
-      f->GetObject("display/tpc_display_tree",t);
-      if (t) tpc_filepath = arg2;
-      if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in TPC tree. Aborting.\n\n";return 0;}
-      f->GetObject("display/od_display_tree",t);
-      if (t) od_filepath = arg2; 
-      if (t&&!t->GetEntries()) {std::cout<<"\nError: No events found in OD tree. Aborting.\n\n";return 0;}
-      f->Close();
+      if (arg2.find("tpc") != std::string::npos) tpc_filepath = arg2;
+      else if (arg2.find("od") != std::string::npos) od_filepath = arg2;
+      else {
+	std::cout<<"\nError. Input file "<<arg2<<" not recognized." 
+	  "Must contain \"tpc\" or \"od\" in the file name."<<std::endl; 
+	return 0;
+      }
     }
     if (tpc_filepath==""&&od_filepath=="") {
-      std::cout<<"\nError: No events found. Aborting.\n\n";
+      std::cout<<"\nError: No events found. Aborting."<<std::endl;
       return 0;
     }
     // Open the display
