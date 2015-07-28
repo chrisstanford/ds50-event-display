@@ -625,6 +625,8 @@ namespace display {
       mg_chan = wt_disc_chan;
       selected = wt_disc_frame->listbox_waveforms->GetSelected();
     }
+    if (!mg_sum)  return;
+    if (!mg_chan) return;
     // Get previous axis limits
     bool is_drawn = EventDisplay::IsWaveformDrawn();
     std::string prev_det = EventDisplay::GetDetectorInActivePad();
@@ -634,15 +636,20 @@ namespace display {
     TCanvas* c = gPad->GetCanvas();
     c->Clear();
     if (selected == display::channeltype::kSumChannel) {
-      TGraph* gr = (TGraph*)(mg_sum->GetListOfGraphs()->First());
-      if (!gr) return;
-      if (input=="tpc") {
+      if (input=="tpc" && !EventDisplay::MultiGraphContainsIntegral(mg_sum)) { // add integral 
+	TGraph* gr = (TGraph*)(mg_sum->GetListOfGraphs()->First());
+	if (!gr) return;
 	EventDisplay::SetIntegralGraph(gr);
 	mg_sum->Add(wf_integral);
       }
       mg_sum->Draw("al");
-      //      if (gr) gr->Draw("al"); 
     } else if (selected == display::channeltype::kAllChannel) {
+      if (input=="tpc" && !EventDisplay::MultiGraphContainsIntegral(mg_chan)) { // add integral
+	TGraph* gr = (TGraph*)(mg_sum->GetListOfGraphs()->First());
+	if (!gr) return;
+	EventDisplay::SetIntegralGraph(gr,mg_chan);
+	mg_chan->Add(wf_integral);
+      }
       mg_chan->Draw("al");
     } else {
       TGraph* gr = (TGraph*)(mg_chan->GetListOfGraphs()->At(selected));
@@ -678,13 +685,13 @@ namespace display {
     // Currently set to draw sum waveform. 
     // Call this function after loading a new event.
     if (tpc_enabled) {
-      tpc_wf_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
+      //      tpc_wf_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
       EventDisplay::DrawWaveform("tpc");
     } else if (lsv_enabled) {
-      lsv_ampl_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
+      //      lsv_ampl_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
       EventDisplay::DrawWaveform("lsv_ampl");
     } else if (wt_enabled) {
-      wt_ampl_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
+      //      wt_ampl_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
       EventDisplay::DrawWaveform("wt_ampl");
     }
   }
@@ -803,13 +810,19 @@ namespace display {
   //________________________________________________________________________________________
   int EventDisplay::GetChannelIDFromMultigraphID(int mg_id, TMultiGraph* mg) {
     TList* list_graphs = mg->GetListOfGraphs();
-    const int N_channels = list_graphs->GetSize();
+    int N_channels = list_graphs->GetSize();
+    if (MultiGraphContainsIntegral(mg)) N_channels--;
     if (mg_id>N_channels) return -1;
     TGraph* gr = (TGraph*)list_graphs->At(mg_id);
     std::string gr_name = gr->GetName();
-    int last_index = gr_name.find_last_not_of("0123456789");
+    if (gr_name=="Integral") return -1;
+    //    std::cout<<gr_name<<std::endl;
+    size_t last_index = gr_name.find_last_not_of("0123456789");
+    if (last_index>=(gr_name.length()-1)) return -1;
+    //    std::cout<<last_index<<" "<<std::string::npos<<"\n";
     std::string str_ch_id = gr_name.substr(last_index + 1);  
     std::string::size_type sz;
+    //    std::cout<<str_ch_id<<std::endl;
     int ch_id = std::stoi(str_ch_id,&sz);
     return ch_id;
 }
@@ -817,13 +830,17 @@ namespace display {
   //________________________________________________________________________________________
   int EventDisplay::GetMultigraphIDFromChannelID(int ch_id, TMultiGraph* mg) {
     TList* list_graphs = mg->GetListOfGraphs();
-    const int N_channels = list_graphs->GetSize();
+    int N_channels = list_graphs->GetSize();
+    if (MultiGraphContainsIntegral(mg)) N_channels--;
     for (int i=0;i<N_channels;i++) {
       TGraph* gr = (TGraph*)list_graphs->At(i);
       std::string gr_name = gr->GetName();
+      if (gr_name=="Integral") continue;
       int last_index = gr_name.find_last_not_of("0123456789");
+      if (last_index==std::string::npos) continue;
       std::string str_ch = gr_name.substr(last_index + 1);  
       std::string::size_type sz;
+      std::cout<<str_ch<<std::endl;
       int ch = std::stoi(str_ch,&sz);
       if (ch==ch_id) return ch;
     }
@@ -1002,19 +1019,22 @@ namespace display {
   }
 
   //________________________________________________________________________________________
-  double EventDisplay::GetMaxOfMultiGraph(TMultiGraph* mg, double start_t, double end_t) {    
+  double EventDisplay::GetMaxOfMultiGraph(TMultiGraph* mg, double start_t=-9.e9, double end_t=9.e9) {    
     TList* list_graphs = mg->GetListOfGraphs();
-    const int N_channels = list_graphs->GetSize();
+    int N_channels = list_graphs->GetSize();
+    if (MultiGraphContainsIntegral(mg)) N_channels--;
     double max = 0;
     double maxtime = 0;
     double maxchan = 0;
     for (int i=0;i<N_channels;i++) {
       TGraph* gr = (TGraph*)list_graphs->At(i);
+      if (gr->GetName()=="Integral") continue;
+      if (!gr) continue;
       const int nbins = gr->GetN();
-      double *x = new double[nbins];
-      double *y = new double[nbins];
-      x = gr->GetX();
-      y = gr->GetY();
+      const double *x = gr->GetX();//new double[nbins];
+      const double *y = gr->GetY();//new double[nbins];
+      //      x = gr->GetX();
+      //      y = gr->GetY();
       std::vector<double> subset;
       for (int j=0;j<nbins;j++) {
 	if (x[j]<start_t) continue;
@@ -1030,7 +1050,7 @@ namespace display {
 	max = tempmax;
       }
     }
-    std::cout<<"Max of muligraph in region "<<max<<"\n";
+    //    std::cout<<"Max of muligraph in region "<<max<<"\n";
     return max;
   }
     
@@ -1143,6 +1163,7 @@ namespace display {
     TList* canvas_graphs = gPad->GetCanvas()->GetListOfPrimitives();
     for (int i=0;i<canvas_graphs->GetSize();i++) {
       std::string obj_name = canvas_graphs->At(i)->GetName();
+      if (obj_name=="Integral") continue;
       if (obj_name.find("mg_") != std::string::npos) {
 	TMultiGraph* mg = (TMultiGraph*)gPad->GetPrimitive(obj_name.c_str());
 	start_bin = mg->GetHistogram()->GetXaxis()->GetFirst();
@@ -1195,7 +1216,8 @@ namespace display {
     if (!mg_chan) {std::cout<<"Error coloring "<<detector<<std::endl; return;}
     // Get list of channels
     TList* list_graphs = mg_chan->GetListOfGraphs();
-    const int N_channels = list_graphs->GetSize();
+    int N_channels = list_graphs->GetSize();
+    if (MultiGraphContainsIntegral(mg_chan)) N_channels--;
     // Get channel integrals and max integral
     double max_integral  = 0; // needed to set palette scale
     std::vector<int>    chan_id; // chan ids from mg
@@ -1203,6 +1225,7 @@ namespace display {
     // loop over channels to find max integral
     for (int i=0;i<N_channels;i++) {
       TGraph* gr = (TGraph*)list_graphs->At(i);
+      if (gr->GetName()=="Integral") continue;
       // Get integral
       double integral = EventDisplay::GetGraphIntegral(gr,start_t,end_t);
       integral = EventDisplay::AdjustIntegral(detector,integral);
@@ -1210,6 +1233,7 @@ namespace display {
       if (integral>max_integral) max_integral=integral;
       // Get channel id
       int id = EventDisplay::GetChannelIDFromMultigraphID(i,mg_chan);
+      if (id<0) continue;
       //std::cout<<"channel "<<i<<" integral "<<integral<<"\n";
       chan_id.push_back(id);
     }
@@ -1347,15 +1371,20 @@ namespace display {
     TMultiGraph* mg = GetChannelMultiGraph(detector);
     if (!mg) return NULL;
     int mg_id = GetMultigraphIDFromChannelID(ch,mg);
+    if (mg_id<0) return NULL;
     return (TGraph*)mg->GetListOfGraphs()->At(mg_id);
   }
 
   //________________________________________________________________________________________  
-  void EventDisplay::SetIntegralGraph(TGraph* gr) {
+  void EventDisplay::SetIntegralGraph(TGraph* gr, double maxoverride) {
     const int N = gr->GetN();
     const double* x = gr->GetX();
     const double* y = gr->GetY();
-    const double max = std::max(fabs(TMath::MaxElement(N,y)),fabs(TMath::MinElement(N,y)));
+    double max;
+    if (maxoverride<0)
+      max = std::max(fabs(TMath::MaxElement(N,y)),fabs(TMath::MinElement(N,y)));
+    else 
+      max = maxoverride;
     double iy[N];
     double integral(0.);
     // Fill integral values
@@ -1367,10 +1396,31 @@ namespace display {
     for (int i=0;i<N;i++) {
       iy[i]=iy[i]*fabs(max/integral);
     }
-    if (wf_integral) delete wf_integral;
+    //    if (wf_integral) delete wf_integral; //currently causes segfault. should be fixed
     wf_integral = new TGraph(N,x,iy);
     wf_integral->SetLineColor(kBlue);
+    wf_integral->SetName("Integral");
     return;
+  }
+
+  //________________________________________________________________________________________  
+  void EventDisplay::SetIntegralGraph(TGraph* gr, TMultiGraph* mg) {
+    const int N = gr->GetN();
+    const double* x = gr->GetX();
+    const double* y = gr->GetY();
+    const double max = EventDisplay::GetMaxOfMultiGraph(mg);
+    EventDisplay::SetIntegralGraph(gr,max);
+    return;
+  }
+
+  //________________________________________________________________________________________
+  bool EventDisplay::MultiGraphContainsIntegral(TMultiGraph* mg) {
+    TList* list_graphs = mg->GetListOfGraphs();
+    for (int i=0;i<list_graphs->GetSize();i++) {
+      std::string obj_name = list_graphs->At(i)->GetName();
+      if (obj_name=="Integral") return true;
+    }
+    return false;
   }
 
   //________________________________________________________________________________________
