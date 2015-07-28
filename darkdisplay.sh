@@ -31,6 +31,8 @@ If you want to look at 5 consecutive events in the OD starting at event 300
 
 If you want to save the display output root files but don't want to open up the display:
 ./darkdisplay.sh -t -r 5475 -e 42474 --nodisplay
+
+* See redmine wiki on how to open up root files you've already created
 EOF
 }
 # Set defaults. These will change based on command line arguments
@@ -67,6 +69,22 @@ while getopts "htor:e:c:f:d:-:" opt; do
 	    esac
     esac
 done
+
+# Verify inputs 
+if [[ "$tpc_enabled" = "false" ]] && [[ "$od_enabled" = "false" ]]; then
+    printf "\nERROR: No detector enabled. For help try: ./darkdisplay.sh -h\n"
+    kill -INT $$ # Stop the script
+fi
+if [ -z "$run" ]; then
+    printf "\nERROR: No run specified.  For help try: ./darkdisplay.sh -h\n"
+    kill -INT $$ # Stop the script
+fi
+if [ -z "$event" ]; then 
+    printf "\nWARNING: No event specified. Setting event=1\n"
+    event=1
+fi
+if [ -z "$consecutive_events" ]; then consecutive_events=1; fi
+
 
 # set output directory
 if [ -z "$output_directory" ]; then
@@ -107,17 +125,6 @@ export FHICL_FILE_PATH=$FHICL_FILE_PATH:/ds50/app/user/${USER}/work/darkart/fcl
 
 # Create temp fcl file with desired event number and number of consecutive events desired.
 # The od and tpc display fcl files look for this fcl file so they know which events to process.
-if [ -z "$run" ]; then
-    printf "\nERROR: No run specified. Aborting...\n"
-    kill -INT $$ # Stop the script
-fi
-if [ -z "$event" ]; then 
-    printf "\nWARNING: No event specified. Setting event=1\n"
-    event=1
-fi
-if [ -z "$consecutive_events" ]; then consecutive_events=1; fi
-
-
 # generate temp fhicl file to be fed into art
 printf \
 "single_event : ${event}\n\
@@ -201,11 +208,11 @@ if [ "$nodisplay" = true ]; then
     kill -INT $$ # Stop the script
 fi
 
-if [[ "$tpc_enabled" == "true" && "$od_enabled" == "true" ]]; then
+if [[ "$tpc_enabled" = "true" && "$od_enabled" = "true" ]]; then
     /ds50/app/user/jcjs/work/EventDisplay/EventDisplay "${tpc_display_output}" "${od_display_output}"
-elif [ "$tpc_enabled" == "true" ]; then
+elif [ "$tpc_enabled" = "true" ]; then
     /ds50/app/user/jcjs/work/EventDisplay/EventDisplay "${tpc_display_output}"
-elif [ "$od_enabled" == "true" ]; then
+elif [ "$od_enabled" = "true" ]; then
     /ds50/app/user/jcjs/work/EventDisplay/EventDisplay "${od_display_output}"
 else
     printf "\nERROR: No detectors were enabled! See usage: ./darkdisplay -h\n"
