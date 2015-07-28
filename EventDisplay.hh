@@ -280,7 +280,7 @@ namespace display {
     TMultiGraph* GetSumMultiGraph(std::string detector);
     TMultiGraph* GetChannelMultiGraph(std::string detector);
     void SetIntegralGraph(TGraph* gr);
-    TEveRGBAPalette* MakePalette();
+    TEveRGBAPalette* MakePalette(Color_t background);
     TEveGeoShape* MakePMT(std::string detector, int ch_id, double size);
   };
   
