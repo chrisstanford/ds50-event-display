@@ -140,6 +140,8 @@ namespace display {
       TGNumberEntry*      entry_fps;
       TGTextButton*       button_record;
       TGCheckButton*      check_box_log;
+      TGCheckButton*      check_box_background;
+      TGCheckButton*      check_box_seperate_files;
       TGTextEntry*        entry_filename;
     private:
       TGLabel*            label_warning;      
@@ -258,7 +260,7 @@ namespace display {
     void CreateCanvas();
     void CreateGeometry();
     void CreateDetector(std::string detector);
-    void ColorByStartEnd(std::string detector, double start_t, double end_t, double max_integral_override=-1., bool draw_palette=true);
+    void ColorByStartEnd(std::string detector, double start_t, double end_t, double max_integral_override=-1., bool draw_palette=true, Color_t background=kBlack);
     bool IsWaveformDrawn();
     bool IsWaveformDrawn(std::string detector);
     int  GetChannelIDFromMultigraphID(int mg_id, TMultiGraph* mg); // Channel id from graph at index mg_id in multigraph
@@ -275,7 +277,7 @@ namespace display {
     TGraph* GetSumGraph(std::string detector);
     TMultiGraph* GetSumMultiGraph(std::string detector);
     TMultiGraph* GetChannelMultiGraph(std::string detector);
-    TEveRGBAPalette* MakePalette();
+    TEveRGBAPalette* MakePalette(Color_t background);
     TEveGeoShape* MakePMT(std::string detector, int ch_id, double size);
   };
   

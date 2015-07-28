@@ -572,6 +572,14 @@ namespace display {
     check_box_log = new TGCheckButton(this,"Use log scaling");
     check_box_log->SetState(kButtonUp);
     AddFrame(check_box_log, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));    
+    // Use white background check box
+    check_box_background = new TGCheckButton(this,"Use white background");
+    check_box_background->SetState(kButtonUp);
+    AddFrame(check_box_background, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));    
+    // Save frames as seperate files check box
+    check_box_seperate_files = new TGCheckButton(this,"Save frames as sererate files");
+    check_box_seperate_files->SetState(kButtonUp);
+    AddFrame(check_box_seperate_files, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));    
     // Filename frame
     TGHorizontalFrame* frame_filename = new TGHorizontalFrame(this);
     label_filename = new TGLabel(frame_filename,"Filename override");
@@ -911,15 +919,12 @@ namespace display {
   void EventDisplay::CreateGeometry() {
     // Set camera orientation         
     GetDefaultGLViewer()->SetCurrentCamera(TGLViewer::kCameraPerspXOY);
-    //#define WHITE_BACKGROUND
-#ifdef WHITE_BACKGROUND
-    GetDefaultGLViewer()->SetClearColor(kWhite);
-#endif
     // Create the geometries
     if (tpc_geo_enabled) CreateDetector("tpc");
     if (lsv_geo_enabled) CreateDetector("lsv");
     if (wt_geo_enabled)  CreateDetector("wt");
   }
+
   //________________________________________________________________________________________
   void EventDisplay::CreateDetector(std::string detector) {
     int min_ch_id=0;
@@ -1028,28 +1033,42 @@ namespace display {
       run_id    = od_run_id;
       event_id  = od_event_id;
     }
-    double step_size = gif_frame->entry_step_size->GetNumber(); //us
+    double step_size   = gif_frame->entry_step_size->GetNumber(); //us
     double window_size = gif_frame->entry_window_size->GetNumber(); //us
+    double fps         = gif_frame->entry_fps->GetNumber();
+    if (step_size<1e-5 || window_size<1e-5 || fps<1e-5) {
+      std::cout<<"The current settings don't work. Please consult the manual."<<std::endl;
+      return;
+    }
     double window_size_bins = window_size/EventDisplay::GetBinWidth(detector);
-    double fps = gif_frame->entry_fps->GetNumber();
     int frame_length = (1./fps)*100; // convert from fps to 10s of ms
-    double start_us = EventDisplay::GetAxisValue("min");
-    double end_us =   EventDisplay::GetAxisValue("max");
+    double start_t = EventDisplay::GetAxisValue("min");
+    double end_t =   EventDisplay::GetAxisValue("max");
+    //    double nframes = (end_t-start_t)/step_size;
+    Color_t background;
+    if (gif_frame->check_box_background->IsOn())
+      background = kWhite;
+    else
+      background = kBlack;
     std::ostringstream filename_no_ext;
-    filename_no_ext<<detector<<"_r"<<run_id<<"_e"<<event_id<<"_start"<<start_us<<"_end"<<end_us<<"_step"<<step_size<<"_window"<<window_size<<"_fps"<<fps;    
+    filename_no_ext<<detector<<"_r"<<run_id<<"_e"<<event_id<<"_start"<<start_t<<"_end"<<end_t<<"_step"<<step_size<<"_window"<<window_size<<"_fps"<<fps;    
     std::string str_filename = gif_frame->entry_filename->GetText();
     if (str_filename=="default") 
       str_filename = filename_no_ext.str();	   
-    std::ostringstream filename_with_ext;
-    filename_with_ext<<str_filename<<".gif+"<<frame_length;
-    double value_max = EventDisplay::GetMaxOfMultiGraph(mg_chan,start_us,end_us);
+    double value_max = EventDisplay::GetMaxOfMultiGraph(mg_chan,start_t,end_t);
     double integral_max = window_size_bins*value_max;
     integral_max = EventDisplay::AdjustIntegral(detector,integral_max);
     //    std::cout<<"Max integral Adjusted "<<integral_max<<"\n";
-    std::cout<<"Limits: "<<start_us<<" to "<<end_us<<"\n";
-    for (int i = 0;start_us<end_us;start_us+=step_size) {
-      std::cout<<"Coloring from "<<start_us<<" to "<<start_us+window_size<<std::endl;
-      EventDisplay::ColorByStartEnd(detector,start_us,start_us+window_size,integral_max/*/5*/,false);
+    std::cout<<"Limits: "<<start_t<<" to "<<end_t<<"\n";
+    std::ostringstream filename_with_ext;
+    for (int i = 0;start_t<end_t;start_t+=step_size) {
+      filename_with_ext.str("");
+      if (gif_frame->check_box_seperate_files->IsOn())
+	filename_with_ext<<str_filename<<"_frame"<<i++<<".gif";
+      else
+	filename_with_ext<<str_filename<<".gif+"<<frame_length;
+      std::cout<<"Coloring from "<<start_t<<" to "<<start_t+window_size<<std::endl;
+      EventDisplay::ColorByStartEnd(detector,start_t,start_t+window_size,integral_max/*/5*/,false, background);
       EventDisplay::SavePicture(filename_with_ext.str().c_str());
     }
     std::cout<<"Complete! GIF saved as \n"<<filename_no_ext.str()<<".gif"<<std::endl;
@@ -1116,7 +1135,7 @@ namespace display {
   }
 
   //________________________________________________________________________________________
-  void EventDisplay::ColorByStartEnd(std::string detector, double start_t, double end_t, double max_integral_override, bool draw_palette) {
+  void EventDisplay::ColorByStartEnd(std::string detector, double start_t, double end_t, double max_integral_override, bool draw_palette, Color_t background) {
     if (detector=="tpc"&&!tpc_geo_enabled) return;
     if (detector=="lsv"&&!lsv_geo_enabled) return;
     if (detector=="wt" &&!wt_geo_enabled)  return;
@@ -1150,7 +1169,7 @@ namespace display {
     if (max_integral_override>0) 
       max_integral = max_integral_override; 
     // Set palette
-    TEveRGBAPalette* pal = EventDisplay::MakePalette();      
+    TEveRGBAPalette* pal = EventDisplay::MakePalette(background);      
     // Get detector list
     TEveElementList* detector_list;
     if (detector=="tpc") detector_list = tpc_geometry; 
@@ -1284,24 +1303,30 @@ namespace display {
 
 
   //________________________________________________________________________________________
-  TEveRGBAPalette* EventDisplay::MakePalette() {
-#ifdef WHITE_BACKGROUND
-    const int NRGBs = 4;
-    const int NCont = 100;
-    double stops[NRGBs] = { 0.00, 0.40, 0.60, 1.00 };
-    double red[NRGBs]   = { 0.15, 1.00, 1.00, 1.00 };
-    double green[NRGBs] = { 0.15, 1.00, 1.00, 1.00 };
-    double blue[NRGBs]  = { 0.15, 1.00, 1.00, 1.00 };
-#else
-    const int NRGBs = 6;
-    const int NCont = 100;
-    double stops[NRGBs] = { 0.00, 0.05, 0.34, 0.61, 0.84, 1.00 };
-    double red[NRGBs]   = { 0.00, 0.00, 0.00, 0.87, 1.00, 0.51 };
-    double green[NRGBs] = { 0.00, 0.00, 0.81, 1.00, 0.20, 0.00 };
-    double blue[NRGBs]  = { 0.30, 0.51, 1.00, 0.12, 0.00, 0.00 };
-#endif
-    TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
-    TEveRGBAPalette *pal = new TEveRGBAPalette(0,100);
+  TEveRGBAPalette* EventDisplay::MakePalette(Color_t background = kBlack) {
+    TEveRGBAPalette *pal;
+    if (background == kWhite) {
+      GetDefaultGLViewer()->SetClearColor(kWhite);
+      const int NRGBs = 4;
+      const int NCont = 100;
+      double stops[NRGBs] = { 0.00, 0.40, 0.60, 1.00 };
+      double red[NRGBs]   = { 0.15, 1.00, 1.00, 1.00 };
+      double green[NRGBs] = { 0.15, 1.00, 1.00, 1.00 };
+      double blue[NRGBs]  = { 0.15, 0.00, 0.00, 0.00 };
+      TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
+      pal = new TEveRGBAPalette(0,100);
+      return pal;
+    } else { // black
+    GetDefaultGLViewer()->SetClearColor(kBlack);
+      const int NRGBs = 6;
+      const int NCont = 100;
+      double stops[NRGBs] = { 0.00, 0.05, 0.34, 0.61, 0.84, 1.00 };
+      double red[NRGBs]   = { 0.00, 0.00, 0.00, 0.87, 1.00, 0.51 };
+      double green[NRGBs] = { 0.00, 0.00, 0.81, 1.00, 0.20, 0.00 };
+      double blue[NRGBs]  = { 0.30, 0.51, 1.00, 0.12, 0.00, 0.00 };
+      TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
+      pal = new TEveRGBAPalette(0,100);
+    }
     return pal;
   }
 
