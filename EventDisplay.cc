@@ -159,7 +159,7 @@ namespace display {
   }
 
   //________________________________________________________________________________________
-  void EventDisplay::LoadEvent(int id) {
+  int EventDisplay::LoadEvent(int id) {
     std::cout<<"Loading event."<<std::endl;
     // Initialize main window title
     std::ostringstream os;
@@ -168,11 +168,11 @@ namespace display {
       // Check if event exists
       if (id >= tpc_display_tree->GetEntries()) {
 	std::cout<<"No next TPC event."<<std::endl;
-	return;
+	return 0;
       }
       if (id < 0) {
 	std::cout<<"No previous TPC event."<<std::endl;
-	return;
+	return 0;
       }
       // Clear structures from previous event
       for (int i=0;i<tpc_pulse_vec.size();++i) delete tpc_pulse_vec.at(i);
@@ -244,11 +244,11 @@ namespace display {
       // Check if event exists
       if (id >= od_display_tree->GetEntries()) {
 	std::cout<<"No next OD event."<<std::endl;
-	return;
+	return 0;
       }
       if (id < 0) {
 	std::cout<<"No previous OD event."<<std::endl;
-	return;
+	return 0;
       }
       // Clear structures from previous event
       for (int i=0;i<lsv_cluster_vec.size();++i) delete lsv_cluster_vec.at(i);
@@ -317,6 +317,7 @@ namespace display {
     // Set title
     std::string title = os.str();
     GetBrowser()->GetMainFrame()->SetWindowName(title.c_str());
+    return 1;
   }
 
   //________________________________________________________________________________________
@@ -328,7 +329,8 @@ namespace display {
     CreateOptionsTab();
     CreateCanvas();
     CreateGeometry();
-    GetBrowser()->GetTabLeft()->SetTab(2);
+    GetBrowser()->GetTabLeft()->SetTab(2);    
+    EventDisplay::DrawDefaultWaveform();
   }
 
   ///////////////////////////////////////
@@ -625,7 +627,13 @@ namespace display {
     c->Clear();
     if (selected == display::channeltype::kSumChannel) {
       TGraph* gr = (TGraph*)(mg_sum->GetListOfGraphs()->First());
-      if (gr) gr->Draw("al"); 
+      if (!gr) return;
+      if (input=="tpc") {
+	EventDisplay::SetIntegralGraph(gr);
+	mg_sum->Add(wf_integral);
+      }
+      mg_sum->Draw("al");
+      //      if (gr) gr->Draw("al"); 
     } else if (selected == display::channeltype::kAllChannel) {
       mg_chan->Draw("al");
     } else {
@@ -655,6 +663,22 @@ namespace display {
     // Update
     c->Update();  
     gEve->GetBrowser()->GetTabRight()->SetTab(1);
+  }
+
+  //________________________________________________________________________________________
+  void EventDisplay::DrawDefaultWaveform() {
+    // Currently set to draw sum waveform. 
+    // Call this function after loading a new event.
+    if (tpc_enabled) {
+      tpc_wf_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
+      EventDisplay::DrawWaveform("tpc");
+    } else if (lsv_enabled) {
+      lsv_ampl_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
+      EventDisplay::DrawWaveform("lsv_ampl");
+    } else if (wt_enabled) {
+      wt_ampl_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
+      EventDisplay::DrawWaveform("wt_ampl");
+    }
   }
 
   //________________________________________________________________________________________
@@ -841,6 +865,10 @@ namespace display {
     TEveWindowFrame* tab_frame = slot->MakeFrame();
     tab_frame->SetShowTitleBar(kFALSE);
     TGCompositeFrame* comp_frame = tab_frame->GetGUICompositeFrame();
+    // Save Canvas button
+    TGTextButton* button_save_canvas = new TGTextButton(comp_frame,"Save Current Canvas to png");
+    button_save_canvas->Connect("Clicked()","display::EventDisplay",this,"SaveCanvas()");
+    comp_frame->AddFrame(button_save_canvas,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
     // Color button
     TGTextButton* button_color_by_axis = new TGTextButton(comp_frame,"Color PMTs by Current Canvas Limits");
     button_color_by_axis->Connect("Clicked()","display::EventDisplay",this,"ColorByAxis(=\"tpc\")");
@@ -866,6 +894,10 @@ namespace display {
     TEveWindowFrame* tab_frame = slot->MakeFrame();
     tab_frame->SetShowTitleBar(kFALSE);
     TGCompositeFrame* comp_frame = tab_frame->GetGUICompositeFrame();
+    // Save Canvas button
+    TGTextButton* button_save_canvas = new TGTextButton(comp_frame,"Save Current Canvas to png");
+    button_save_canvas->Connect("Clicked()","display::EventDisplay",this,"SaveCanvas()");
+    comp_frame->AddFrame(button_save_canvas,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
     // Color button
     TGTextButton* button_color_by_axis = new TGTextButton(comp_frame,"Color PMTs by Current Axis Limits");
     button_color_by_axis->Connect("Clicked()","display::EventDisplay",this,Form("ColorByAxis(=\"%s\")",detector.c_str()));
@@ -1064,6 +1096,23 @@ namespace display {
     if (!glv) return;
     //    std::cout<<"Saving "<<filename<<std::endl;
     glv->SavePictureUsingBB(filename.c_str());
+  }
+
+  void EventDisplay::SaveCanvas() {
+    std::string filename;
+    int min = EventDisplay::GetAxisValue("min");
+    int max = EventDisplay::GetAxisValue("max");
+    if (EventDisplay::GetDetectorInActivePad()=="tpc")
+      filename=Form("canvas_tpc_r%d_e%d_from_%d_to_%d.png",tpc_run_id,tpc_event_id,min,max);
+    else if (EventDisplay::GetDetectorInActivePad()=="od")
+      filename=Form("canvas_od_r%d_e%d_from_%d_to_%d.png",od_run_id,od_event_id,min,max);
+    else {
+      std::cout<<"No waveform found in active pad."<<std::endl;
+      return;
+    }
+    TCanvas* c = gPad->GetCanvas();
+    if (!c) return;
+    c->SaveAs(filename.c_str());
   }
 
   //________________________________________________________________________________________
@@ -1282,6 +1331,28 @@ namespace display {
     return (TGraph*)mg->GetListOfGraphs()->At(mg_id);
   }
 
+  //________________________________________________________________________________________  
+  void EventDisplay::SetIntegralGraph(TGraph* gr) {
+    const int N = gr->GetN();
+    const double* x = gr->GetX();
+    const double* y = gr->GetY();
+    const double max = std::max(fabs(TMath::MaxElement(N,y)),fabs(TMath::MinElement(N,y)));
+    double iy[N];
+    double integral(0.);
+    // Fill integral values
+    for (int i=0;i<N;i++) {
+      integral+=y[i];
+      iy[i]=integral;
+    }
+    // Scale the integral
+    for (int i=0;i<N;i++) {
+      iy[i]=iy[i]*fabs(max/integral);
+    }
+    if (wf_integral) delete wf_integral;
+    wf_integral = new TGraph(N,x,iy);
+    wf_integral->SetLineColor(kBlue);
+    return;
+  }
 
   //________________________________________________________________________________________
   TEveRGBAPalette* EventDisplay::MakePalette() {
@@ -1405,8 +1476,14 @@ namespace display {
   }
 
   //________________________________________________________________________________________
-  void EventDisplay::NextEvent() {LoadEvent(current_event_id+1);}
-  void EventDisplay::PrevEvent() {LoadEvent(current_event_id-1);}
+  void EventDisplay::NextEvent() {
+    if (LoadEvent(current_event_id+1))
+      EventDisplay::DrawDefaultWaveform();
+ }
+  void EventDisplay::PrevEvent() {
+    if (LoadEvent(current_event_id-1))
+      EventDisplay::DrawDefaultWaveform();
+  }
   
 }// end of display namespace
 

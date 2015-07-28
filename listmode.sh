@@ -14,7 +14,7 @@ mkdir "${output_directory}"
 while read run event
 do 
     echo $run $event
-#    ./darkdisplay.sh "-t" "-r" "${run}" "-e" "${event}" "-d" "${output_directory}" "--nodisplay" "--usebestguess"; 
+    ./darkdisplay.sh "-t" "-r" "${run}" "-e" "${event}" "-d" "${output_directory}" "--nodisplay" "--usebestguess"; 
 done < "$listmode_file"
 
 printf "\nComplete. Now do:\n\n./EventDisplay -d ${output_directory}\n\nto open the display.\n"

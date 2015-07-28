@@ -84,6 +84,7 @@ namespace display {
     void ColorByAxis(const char* det);      
     void CreateMovieByAxis(const char* det);
     void SavePicture(const char* fname);
+    void SaveCanvas();
 
   private:
     // GUI Structures
@@ -161,10 +162,10 @@ namespace display {
     TFile*              f1;
     TFile*              f2;
     //                  main tree
-    TChain*              od_display_tree;
-    TChain*              od_settings_tree;
-    TChain*              tpc_display_tree;
-    TChain*              tpc_settings_tree;
+    TChain*             od_display_tree;
+    TChain*             od_settings_tree;
+    TChain*             tpc_display_tree;
+    TChain*             tpc_settings_tree;
      
     //                  main variables
     int                 od_run_id;
@@ -192,6 +193,7 @@ namespace display {
     TMultiGraph*        wt_ampl_chan;
     TMultiGraph*        wt_disc_sum;
     TMultiGraph*        wt_disc_chan;
+    TGraph*             wf_integral;
             
     //                  lsv cluster data
     TTree*              lsv_cluster_tree;
@@ -243,7 +245,8 @@ namespace display {
     void LoadFile(std::string, std::string); 
     void LoadDirectory(std::string directory); 
     void SetBranchAddresses();
-    void LoadEvent(int); 
+    int  LoadEvent(int); 
+    void DrawDefaultWaveform();
     void DrawTPCPulses(int ch);     
     void DrawTPCSPEs(int ch);
     void DrawLSVClusters();     
@@ -263,18 +266,18 @@ namespace display {
     bool IsWaveformDrawn(std::string detector);
     int  GetChannelIDFromMultigraphID(int mg_id, TMultiGraph* mg); // Channel id from graph at index mg_id in multigraph
     int  GetMultigraphIDFromChannelID(int ch_id, TMultiGraph* mg); // Index of graph for channel ch_id in multigraph
-
     double GetMaxOfMultiGraph(TMultiGraph* mg, double start_t, double end_t);
     double GetGraphIntegral(TGraph* g, double start_t, double end_t);
     double GetAxisValue(std::string option);
     double GetBinWidth(std::string detector);
     double AdjustIntegral(std::string detector, double integral); // Adjust the numerical integral to proper units 
-    std::string TPCorOD(std::string detector); // returns "tpc" or "od"
+    std::string TPCorOD(std::string detector); // returns "tpc" or "od", takes in "tpc","lsv","wt"
     std::string GetDetectorInActivePad(); // returns "tpc" or "od"
     TGraph* GetChannelGraph(std::string detector, int ch);
     TGraph* GetSumGraph(std::string detector);
     TMultiGraph* GetSumMultiGraph(std::string detector);
     TMultiGraph* GetChannelMultiGraph(std::string detector);
+    void SetIntegralGraph(TGraph* gr);
     TEveRGBAPalette* MakePalette();
     TEveGeoShape* MakePMT(std::string detector, int ch_id, double size);
   };
