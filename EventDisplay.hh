@@ -281,8 +281,7 @@ namespace display {
     TMultiGraph* GetChannelMultiGraph(std::string detector);
     void SetIntegralGraph(TGraph* gr, double maxoverride=-1.); // Make integral for sum or channel
     void SetIntegralGraph(TGraph* gr, TMultiGraph* mg); // Make integral for allchannel using sum 
-    bool MultiGraphContainsIntegral(TMultiGraph* mg); // check if multigraph contains an integral graph
-    
+    bool MultiGraphContainsIntegral(TMultiGraph* mg); // check if multigraph contains an integral graph    
     TEveRGBAPalette* MakePalette(Color_t background);
     TEveGeoShape* MakePMT(std::string detector, int ch_id, double size);
   };

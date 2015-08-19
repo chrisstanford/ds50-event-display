@@ -117,9 +117,9 @@ if [ ! -d "$CETPKG_BUILD" ]; then
     source /ds50/app/ds50/setup_ds50
     source /ds50/app/ds50/setup_ds50_build
 fi
-#echo "Changing directory to darkart build directory: ${CETPKG_BUILD}"
+echo "Changing directory to darkart build directory: ${CETPKG_BUILD}"
 cd $CETPKG_BUILD
-
+#cd $output_directory
 # Set fcl filepath
 export FHICL_FILE_PATH=$FHICL_FILE_PATH:/ds50/app/user/${USER}/work/darkart/fcl
 
@@ -199,11 +199,17 @@ if [ "$od_enabled" = "true" ]; then
     fi
     
     art -c $odfcl $odfile_subrun1
+    
+    #
 fi
 
 #################
 # Event Display #
 #################
+
+#cd $output_directory
+
+
 if [ "$nodisplay" = true ]; then
     kill -INT $$ # Stop the script
 fi
@@ -218,6 +224,7 @@ else
     printf "\nERROR: No detectors were enabled! See usage: ./darkdisplay -h\n"
     kill -INT $$ # Stop the script
 fi
+
 
 # Remove temp fcl file
 #rm event_selection.fcl
