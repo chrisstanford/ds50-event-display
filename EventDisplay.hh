@@ -67,13 +67,13 @@ namespace display {
 
   class EventDisplay : public TEveManager {
   public:
-    explicit EventDisplay(std::string, std::string);
-    explicit EventDisplay(std::string directory);
+    explicit EventDisplay(std::string file1, std::string file2, std::string option);
+    explicit EventDisplay(std::string directory, std::string option);
     void Create();
 
     // Functions called by buttons
-    void NextEvent();
-    void PrevEvent();
+    int LoadEventTPC(const char* dettab);
+    int LoadEventOD (const char* dettab);
     void DrawWaveform(const char* input);      
     void ZoomAxisByTPCPulse();
     void ZoomAxisByLSVCluster(const char* det);
@@ -127,10 +127,16 @@ namespace display {
       TGTextButton*       button_print_info;
     };
     class EventSelectionFrame : public TGGroupFrame {
+    private:
+      const EventDisplay* parent; // pointer to parent class
     public:
-      EventSelectionFrame(const TGCompositeFrame* p);
-      TGTextButton*       button_next;
-      TGTextButton*       button_prev;
+      EventSelectionFrame(const EventDisplay* parent, const TGCompositeFrame* p);
+      TGListBox*          listbox_events_tpc;
+      TGListBox*          listbox_events_od;
+      TGTextButton*       button_load_tpc;
+      TGTextButton*       button_load_od;
+      // TGTextButton*       button_next;
+      // TGTextButton*       button_prev;
     };
     class GIFFrame : public TGGroupFrame {
     public:
@@ -156,6 +162,8 @@ namespace display {
     //                  gui tabs
     TCanvas*            canvas;
 
+    bool                enabled_3d;
+
     //                  tabs
     TEveWindowTab*      tab_waveforms;
     TEveWindowTab*      tab_options;
@@ -163,6 +171,7 @@ namespace display {
     //                  input files
     TFile*              f1;
     TFile*              f2;
+
     //                  main tree
     TChain*             od_display_tree;
     TChain*             od_settings_tree;
@@ -232,6 +241,10 @@ namespace display {
     LSVClusterFrame*    wt_cluster_frame;
     LSVROIFrame*        wt_roi_frame;
 
+    EventSelectionFrame*tpc_event_selection_frame;
+    EventSelectionFrame*lsv_event_selection_frame;
+    EventSelectionFrame* wt_event_selection_frame;
+
     GIFFrame*           tpc_gif_frame;
     GIFFrame*           lsv_gif_frame;
     GIFFrame*           wt_gif_frame;
@@ -247,7 +260,7 @@ namespace display {
     void LoadFile(std::string, std::string); 
     void LoadDirectory(std::string directory); 
     void SetBranchAddresses();
-    int  LoadEvent(int); 
+    //    int  LoadEvent(int); 
     void DrawDefaultWaveform();
     void DrawTPCPulses(int ch);     
     void DrawTPCSPEs(int ch);

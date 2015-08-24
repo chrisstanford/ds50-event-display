@@ -2,8 +2,8 @@
 #include "./EventDisplay.hh"
 
 namespace display {
-  EventDisplay::EventDisplay(std::string filepath1, std::string filepath2) :
-    TEveManager(1024,768,kTRUE,"FIV"),							    
+  EventDisplay::EventDisplay(std::string filepath1, std::string filepath2, std::string option) :
+    TEveManager(1024,768,kTRUE,option.c_str()),							    
     tpc_enabled(false),
     lsv_enabled(false),
     wt_enabled(false),
@@ -15,12 +15,16 @@ namespace display {
     if (tpc_display_tree) std::cout<<"tpctreeexists2!8\n";
     if (od_settings_tree) std::cout<<od_settings_tree<<" odtreeexists1!8\n";
     if (od_display_tree) std::cout<<od_display_tree<<" odtreeexists2!8\n";
-    std::cout<<"Please ignore libGL errors."<<std::endl;
+    if (option.find("V") != std::string::npos) enabled_3d = true;
+    else enabled_3d = false;
+    //    std::cout<<"Please ignore libGL errors."<<std::endl;
     LoadFile(filepath1,filepath2);
+    // Set title
+    GetBrowser()->GetMainFrame()->SetWindowName("EventDisplay");
   }
 
-  EventDisplay::EventDisplay(std::string directory) :
-    TEveManager(1024,768,kTRUE,"FIV"),
+  EventDisplay::EventDisplay(std::string directory, std::string option) :
+    TEveManager(1024,768,kTRUE,option.c_str()),
     tpc_enabled(false),
     lsv_enabled(false),
     wt_enabled(false),
@@ -29,6 +33,10 @@ namespace display {
     wt_geo_enabled(false)
   {
     LoadDirectory(directory);
+    if (option.find("V") != std::string::npos) enabled_3d = true;
+    else enabled_3d = false;
+    // Set title
+    GetBrowser()->GetMainFrame()->SetWindowName("EventDisplay");
   }
 
   ///////////////////////////////////////
@@ -159,176 +167,176 @@ namespace display {
   }
 
   //________________________________________________________________________________________
-  int EventDisplay::LoadEvent(int id) {
-    std::cout<<"Loading event."<<std::endl;
-    // Initialize main window title
-    std::ostringstream os;
+  int EventDisplay::LoadEventTPC(const char* dettab) {
+    if (!tpc_enabled) return 0;
     // Load TPC event
-    if (tpc_enabled) {
-      // Check if event exists
-      if (id >= tpc_display_tree->GetEntries()) {
-	std::cout<<"No next TPC event."<<std::endl;
-	return 0;
-      }
-      if (id < 0) {
-	std::cout<<"No previous TPC event."<<std::endl;
-	return 0;
-      }
-      // Clear structures from previous event
-      for (int i=0;i<tpc_pulse_vec.size();++i) delete tpc_pulse_vec.at(i);
-      for (int i=0;i<tpc_spe_vec.size();++i) delete tpc_spe_vec.at(i);
-      tpc_pulse_vec.clear();      
-      tpc_spe_vec.clear();      
-      // Get event from tree
-      tpc_display_tree->GetEntry(id);
-      current_event_id=id;
-      // Fill title
-      os<<"tpc r"<<std::setw(6)<<std::setfill('0')<<tpc_run_id
-	<<"e"<<std::setw(6)<<std::setfill('0')<<tpc_event_id<<" ";
-      // Set Channel Colors
-      display::SetChannelColors("tpc",tpc_chan);
-      // Load TPC Pulses
-      {
-	const int N_pulses = tpc_pulse_tree->GetEntries();
-	std::cout<<"Found "<<N_pulses<<" TPC pulses.\n";
-	int channel;
-	double start_us;
-	double end_us;
-	double peak_us;
-	double base;
-	double height;
-	tpc_pulse_tree->SetBranchAddress("start_us",&start_us);
-	tpc_pulse_tree->SetBranchAddress("end_us",&end_us);
-	tpc_pulse_tree->SetBranchAddress("peak_us",&peak_us);
-	tpc_pulse_tree->SetBranchAddress("base",&base);
-	tpc_pulse_tree->SetBranchAddress("height",&height);
-	for(int i=0; i<N_pulses; i++) {
-	  tpc_pulse_tree->GetEntry(i);
-	  display::TPCPulse* p = new display::TPCPulse(); 
-	  p->start_us = start_us;
-	  p->end_us   = end_us;
-	  p->peak_us  = peak_us;
-	  p->base     = base;
-	  p->height   = height;
-	  tpc_pulse_vec.push_back(p);
-	}  
-      }
-      // Load SPEs
-      {
-	const int N_spes = tpc_spe_tree->GetEntries();
-	std::cout<<"Found "<<N_spes<<" TPC SPEs.\n";
-	int channel;
-	double start_us;
-	double end_us;
-	double base;
-	double height;
-	tpc_spe_tree->SetBranchAddress("channel",&channel);
-	tpc_spe_tree->SetBranchAddress("start_us",&start_us);
-	tpc_spe_tree->SetBranchAddress("end_us",&end_us);
-	tpc_spe_tree->SetBranchAddress("base",&base);
-	tpc_spe_tree->SetBranchAddress("height",&height);
-	for(int i=0; i<N_spes; i++) {
-	  tpc_spe_tree->GetEntry(i);
-	  display::TPCSPE* s = new display::TPCSPE(); 
-	  s->channel  = channel;
-	  s->start_us = start_us;
-	  s->end_us   = end_us;
-	  s->base     = base;
-	  s->height   = height;
-	  tpc_spe_vec.push_back(s);
-	}  
-      }
+    const std::string detectortab = dettab;
+    int selected;
+    if      (detectortab=="tpc") selected = tpc_event_selection_frame->listbox_events_tpc->GetSelected();
+    else if (detectortab=="lsv") selected = lsv_event_selection_frame->listbox_events_tpc->GetSelected();
+    else if (detectortab=="wt" ) selected =  wt_event_selection_frame->listbox_events_tpc->GetSelected();
+    else selected = 0;
+    std::cout<<"Loading event."<<std::endl;
+    // Check if event exists
+    if (selected >= tpc_display_tree->GetEntries() || selected < 0) {
+      std::cout<<"Invalid event."<<std::endl;
+      return 0;
     }
+    // Clear structures from previous event
+    for (int i=0;i<tpc_pulse_vec.size();++i) delete tpc_pulse_vec.at(i);
+    for (int i=0;i<tpc_spe_vec.size();++i) delete tpc_spe_vec.at(i);
+    tpc_pulse_vec.clear();      
+    tpc_spe_vec.clear();      
+    // Get event from tree
+    tpc_display_tree->GetEntry(selected);
+    current_event_id=selected;
+    // Set Channel Colors
+    display::SetChannelColors("tpc",tpc_chan);
+    // Load TPC Pulses
+    {
+      const int N_pulses = tpc_pulse_tree->GetEntries();
+      std::cout<<"Found "<<N_pulses<<" TPC pulses.\n";
+      int channel;
+      double start_us;
+      double end_us;
+      double peak_us;
+      double base;
+      double height;
+      tpc_pulse_tree->SetBranchAddress("start_us",&start_us);
+      tpc_pulse_tree->SetBranchAddress("end_us",&end_us);
+      tpc_pulse_tree->SetBranchAddress("peak_us",&peak_us);
+      tpc_pulse_tree->SetBranchAddress("base",&base);
+      tpc_pulse_tree->SetBranchAddress("height",&height);
+      for(int i=0; i<N_pulses; i++) {
+	tpc_pulse_tree->GetEntry(i);
+	display::TPCPulse* p = new display::TPCPulse(); 
+	p->start_us = start_us;
+	p->end_us   = end_us;
+	p->peak_us  = peak_us;
+	p->base     = base;
+	p->height   = height;
+	tpc_pulse_vec.push_back(p);
+      }  
+    }
+    // Load SPEs
+    {
+      const int N_spes = tpc_spe_tree->GetEntries();
+      std::cout<<"Found "<<N_spes<<" TPC SPEs.\n";
+      int channel;
+      double start_us;
+      double end_us;
+      double base;
+      double height;
+      tpc_spe_tree->SetBranchAddress("channel",&channel);
+      tpc_spe_tree->SetBranchAddress("start_us",&start_us);
+      tpc_spe_tree->SetBranchAddress("end_us",&end_us);
+      tpc_spe_tree->SetBranchAddress("base",&base);
+      tpc_spe_tree->SetBranchAddress("height",&height);
+      for(int i=0; i<N_spes; i++) {
+	tpc_spe_tree->GetEntry(i);
+	display::TPCSPE* s = new display::TPCSPE(); 
+	s->channel  = channel;
+	s->start_us = start_us;
+	s->end_us   = end_us;
+	s->base     = base;
+	s->height   = height;
+	tpc_spe_vec.push_back(s);
+      }  
+    }
+    std::cout<<"Event loaded."<<std::endl;
+    return 1;
+  }
+
+  //________________________________________________________________________________________
+  int EventDisplay::LoadEventOD(const char* dettab) {
+    if (!lsv_enabled&&!wt_enabled) return 0;
     // Load OD event
-    if (lsv_enabled||wt_enabled) {
-      // Check if event exists
-      if (id >= od_display_tree->GetEntries()) {
-	std::cout<<"No next OD event."<<std::endl;
-	return 0;
-      }
-      if (id < 0) {
-	std::cout<<"No previous OD event."<<std::endl;
-	return 0;
-      }
-      // Clear structures from previous event
-      for (int i=0;i<lsv_cluster_vec.size();++i) delete lsv_cluster_vec.at(i);
-      for (int i=0;i<lsv_roi_vec.size();++i) delete lsv_roi_vec.at(i);
-      lsv_cluster_vec.clear();      
-      lsv_roi_vec.clear();      
-      // Get event from tree
-      od_display_tree->GetEntry(id);
-      current_event_id=id;
-      // Fill title
-      os<<"od r"<<std::setw(6)<<std::setfill('0')<<od_run_id
-	<<"e"<<std::setw(6)<<std::setfill('0')<<od_event_id;
-      // Set Channel Colors
-      display::SetChannelColors("lsv",lsv_ampl_chan);
-      display::SetChannelColors("lsv",lsv_disc_chan);
-      display::SetChannelColors("wt",wt_ampl_chan);
-      display::SetChannelColors("wt",wt_disc_chan);      
-      // Load Clusters
-      {
-	const int N_clusters = lsv_cluster_tree->GetEntries();
-	std::cout<<"Found "<<N_clusters<<" LSV clusters.\n";
-	double start_ns;
-	double end_ns;
-	double charge;
-	double height;
-	int max_multiplicity;
-	lsv_cluster_tree->SetBranchAddress("start_ns",&start_ns);
-	lsv_cluster_tree->SetBranchAddress("end_ns",&end_ns);
-	lsv_cluster_tree->SetBranchAddress("charge",&charge);
-	lsv_cluster_tree->SetBranchAddress("height",&height);
-	lsv_cluster_tree->SetBranchAddress("max_multiplicity",&max_multiplicity);      
-	for(int i=0; i<N_clusters; i++) {
-	  lsv_cluster_tree->GetEntry(i);
-	  display::LSVCluster* c = new display::LSVCluster(); 
-	  c->start_ns = start_ns;
-	  c->end_ns   = end_ns;
-	  c->charge   = charge;
-	  c->height   = height;
-	  c->max_multiplicity = max_multiplicity;
-	  lsv_cluster_vec.push_back(c);
-	}  
-      }
-      // Load ROIs
-      {
-	const int N_rois = lsv_roi_tree->GetEntries();
-	std::cout<<"Found "<<N_rois<<" LSV ROIs.\n";
-	double start_ns;
-	double end_ns;
-	double charge;
-	int max_multiplicity;
-	lsv_roi_tree->SetBranchAddress("start_ns",&start_ns);
-	lsv_roi_tree->SetBranchAddress("end_ns",&end_ns);
-	lsv_roi_tree->SetBranchAddress("charge",&charge);
-	lsv_roi_tree->SetBranchAddress("max_multiplicity",&max_multiplicity);      
-	for(int i=0; i<N_rois; i++) {
-	  lsv_roi_tree->GetEntry(i);
-	  display::LSVROI* r = new display::LSVROI(); 
-	  r->start_ns = start_ns;
-	  r->end_ns   = end_ns;
-	  r->charge   = charge;
-	  r->max_multiplicity = max_multiplicity;
-	  lsv_roi_vec.push_back(r);
-	}  
-      }
+    std::cout<<"Loading event."<<std::endl;
+    const std::string detectortab = dettab;
+    int selected;
+    if      (detectortab=="tpc") selected = tpc_event_selection_frame->listbox_events_od->GetSelected();
+    else if (detectortab=="lsv") selected = lsv_event_selection_frame->listbox_events_od->GetSelected();
+    else if (detectortab=="wt" ) selected =  wt_event_selection_frame->listbox_events_od->GetSelected();
+    else selected = 0;
+    // Check if event exists
+    if (selected >= od_display_tree->GetEntries() || selected < 0) {
+      std::cout<<"Invalid event."<<std::endl;
+      return 0;
     }
-    // Set title
-    std::string title = os.str();
-    GetBrowser()->GetMainFrame()->SetWindowName(title.c_str());
+    // Clear structures from previous event
+    for (int i=0;i<lsv_cluster_vec.size();++i) delete lsv_cluster_vec.at(i);
+    for (int i=0;i<lsv_roi_vec.size();++i) delete lsv_roi_vec.at(i);
+    lsv_cluster_vec.clear();      
+    lsv_roi_vec.clear();      
+    // Get event from tree
+    od_display_tree->GetEntry(selected);
+    current_event_id=selected;
+    // Set Channel Colors
+    display::SetChannelColors("lsv",lsv_ampl_chan);
+    display::SetChannelColors("lsv",lsv_disc_chan);
+    display::SetChannelColors("wt",wt_ampl_chan);
+    display::SetChannelColors("wt",wt_disc_chan);      
+    // Load Clusters
+    {
+      const int N_clusters = lsv_cluster_tree->GetEntries();
+      std::cout<<"Found "<<N_clusters<<" LSV clusters.\n";
+      double start_ns;
+      double end_ns;
+      double charge;
+      double height;
+      int max_multiplicity;
+      lsv_cluster_tree->SetBranchAddress("start_ns",&start_ns);
+      lsv_cluster_tree->SetBranchAddress("end_ns",&end_ns);
+      lsv_cluster_tree->SetBranchAddress("charge",&charge);
+      lsv_cluster_tree->SetBranchAddress("height",&height);
+      lsv_cluster_tree->SetBranchAddress("max_multiplicity",&max_multiplicity);      
+      for(int i=0; i<N_clusters; i++) {
+	lsv_cluster_tree->GetEntry(i);
+	display::LSVCluster* c = new display::LSVCluster(); 
+	c->start_ns = start_ns;
+	c->end_ns   = end_ns;
+	c->charge   = charge;
+	c->height   = height;
+	c->max_multiplicity = max_multiplicity;
+	lsv_cluster_vec.push_back(c);
+      }  
+    }
+    // Load ROIs
+    {
+      const int N_rois = lsv_roi_tree->GetEntries();
+      std::cout<<"Found "<<N_rois<<" LSV ROIs.\n";
+      double start_ns;
+      double end_ns;
+      double charge;
+      int max_multiplicity;
+      lsv_roi_tree->SetBranchAddress("start_ns",&start_ns);
+      lsv_roi_tree->SetBranchAddress("end_ns",&end_ns);
+      lsv_roi_tree->SetBranchAddress("charge",&charge);
+      lsv_roi_tree->SetBranchAddress("max_multiplicity",&max_multiplicity);      
+      for(int i=0; i<N_rois; i++) {
+	lsv_roi_tree->GetEntry(i);
+	display::LSVROI* r = new display::LSVROI(); 
+	r->start_ns = start_ns;
+	r->end_ns   = end_ns;
+	r->charge   = charge;
+	r->max_multiplicity = max_multiplicity;
+	lsv_roi_vec.push_back(r);
+      }  
+    }
+    std::cout<<"Event loaded."<<std::endl;
     return 1;
   }
 
   //________________________________________________________________________________________
   void EventDisplay::Create() {
     // Load first event in display tree
-    LoadEvent(0);
+    if (tpc_enabled) LoadEventTPC("");
+    if (lsv_enabled||wt_enabled) LoadEventOD("");
     // Create Tabs
     CreateWaveformTab();
-    CreateOptionsTab();
     CreateCanvas();
-    CreateGeometry();
+    if (enabled_3d) CreateOptionsTab();
+    if (enabled_3d) CreateGeometry();
     GetBrowser()->GetTabLeft()->SetTab(2);    
     EventDisplay::DrawDefaultWaveform();
   }
@@ -369,14 +377,15 @@ namespace display {
     TPCSPEFrame* spe_frame = new TPCSPEFrame(comp_frame);
     comp_frame->AddFrame(spe_frame, new TGLayoutHints(kLHintsTop | kLHintsExpandX));
     // Event selection box
-    EventSelectionFrame* event_selection_frame = new EventSelectionFrame(comp_frame);
-    event_selection_frame->button_next->Connect("Clicked()","display::EventDisplay",this,"NextEvent()");
-    event_selection_frame->button_prev->Connect("Clicked()","display::EventDisplay",this,"PrevEvent()");
-    comp_frame->AddFrame(event_selection_frame,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    EventSelectionFrame* event_selection_frame = new EventSelectionFrame(this, comp_frame);
+    if (tpc_enabled)               event_selection_frame->button_load_tpc->Connect("Clicked()","display::EventDisplay",this,Form("LoadEventTPC(=\"%s\")",detector.c_str()));
+    if (lsv_enabled || wt_enabled) event_selection_frame->button_load_od->Connect("Clicked()","display::EventDisplay",this,Form("LoadEventOD(=\"%s\")",detector.c_str()));
+    comp_frame->AddFrame(event_selection_frame,new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY));
     // Set globals
     tpc_wf_frame = wf_frame;
     tpc_pulse_frame = pulse_frame;
     tpc_spe_frame = spe_frame;
+    tpc_event_selection_frame = event_selection_frame;
     tab_frame->SetElementName("TPC");
     // Update Layout
     comp_frame->MapSubwindows();
@@ -427,16 +436,17 @@ namespace display {
     roi_frame->button_zoom_axis->Connect("Clicked()","display::EventDisplay",this,Form("ZoomAxisByLSVROI(=\"%s\")",detector.c_str()));
     comp_frame->AddFrame(roi_frame, new TGLayoutHints(kLHintsTop | kLHintsExpandX));
     // Event selection box
-    EventSelectionFrame* event_selection_frame = new EventSelectionFrame(comp_frame);
-    event_selection_frame->button_next->Connect("Clicked()","display::EventDisplay",this,"NextEvent()");
-    event_selection_frame->button_prev->Connect("Clicked()","display::EventDisplay",this,"PrevEvent()");
-    comp_frame->AddFrame(event_selection_frame,new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    EventSelectionFrame* event_selection_frame = new EventSelectionFrame(this, comp_frame);
+    if (tpc_enabled)               event_selection_frame->button_load_tpc->Connect("Clicked()","display::EventDisplay",this,Form("LoadEventTPC(=\"%s\")",detector.c_str()));
+    if (lsv_enabled || wt_enabled) event_selection_frame->button_load_od->Connect("Clicked()","display::EventDisplay",this,Form("LoadEventOD(=\"%s\")",detector.c_str()));
+    comp_frame->AddFrame(event_selection_frame,new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY));
     // Set globals
     if (detector=="lsv") {
       lsv_ampl_frame = ampl_frame;
       lsv_disc_frame = disc_frame;
       lsv_cluster_frame = cluster_frame;
       lsv_roi_frame = roi_frame;
+      lsv_event_selection_frame = event_selection_frame;
       tab_frame->SetElementName("LSV");
     }
     if (detector=="wt") {
@@ -444,6 +454,7 @@ namespace display {
       wt_disc_frame = disc_frame;
       wt_cluster_frame = cluster_frame;
       wt_roi_frame = roi_frame;
+      wt_event_selection_frame = event_selection_frame;
       tab_frame->SetElementName("WT");
     }
     // Update Layout
@@ -454,8 +465,6 @@ namespace display {
 
   //________________________________________________________________________________________
   EventDisplay::WaveformFrame::WaveformFrame(std::string title, TMultiGraph* mg_sum, TMultiGraph* mg_chan, const TGCompositeFrame* p) : TGGroupFrame(p, title.c_str(), kVerticalFrame) {
-    //    int sumchan_id = 1000;
-    //    int allchan_id = 1001;
     listbox_waveforms = new TGListBox(this);
     listbox_waveforms->AddEntry("Sum Channels",display::channeltype::kSumChannel);
     listbox_waveforms->AddEntry("All Channels",display::channeltype::kAllChannel);
@@ -475,13 +484,57 @@ namespace display {
     button_draw = new TGTextButton(this,"Draw");
     AddFrame(button_draw, new TGLayoutHints(kLHintsBottom | kLHintsExpandX));
   }
+
   //________________________________________________________________________________________
-  EventDisplay::EventSelectionFrame::EventSelectionFrame(const TGCompositeFrame* p) : TGGroupFrame(p, "Event Selection", kHorizontalFrame) {
-    button_prev = new TGTextButton(this,"Prev Event");
-    button_next = new TGTextButton(this,"Next Event");
-    AddFrame(button_prev, new TGLayoutHints(kLHintsLeft | kLHintsExpandX,0,0,5,0));
-    AddFrame(button_next, new TGLayoutHints(kLHintsLeft | kLHintsExpandX,0,0,5,0));
+  EventDisplay::EventSelectionFrame::EventSelectionFrame(const EventDisplay* parent, const TGCompositeFrame* p) : TGGroupFrame(p, "Event Selection",kHorizontalFrame), parent(parent) {
+    // Make Event selection frame
+    if (parent->tpc_enabled) {
+      TGVerticalFrame* frame_tpc = new TGVerticalFrame(this);
+      listbox_events_tpc = new TGListBox(frame_tpc);
+      for (size_t i = 0; i<parent->tpc_display_tree->GetEntries(); i++) { 
+	// Get event from tree 
+	int run_id;
+	int event_id;
+	TBranch* branch_run_id = parent->tpc_display_tree->GetBranch("tpc_run_id");
+	TBranch* branch_event_id = parent->tpc_display_tree->GetBranch("tpc_event_id");
+	branch_run_id->GetEntry(i);
+	branch_event_id->GetEntry(i);
+	std::cout<<parent->tpc_run_id<<" "<<parent->tpc_event_id<<"\n";
+	// Fill title
+	std::ostringstream os;
+	os<<"r"<<std::setw(6)<<std::setfill('0')<<parent->tpc_run_id
+	  <<"e"<<std::setw(6)<<std::setfill('0')<<parent->tpc_event_id<<" ";
+	// Add to listbox
+	listbox_events_tpc->AddEntry(os.str().c_str(),i);
+      }
+      frame_tpc->AddFrame(listbox_events_tpc, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX | kLHintsExpandY ,0,0,10,0));
+      button_load_tpc = new TGTextButton(frame_tpc,"Load TPC Event");
+      frame_tpc->AddFrame(button_load_tpc, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX,0,0,3,0));
+      AddFrame(frame_tpc, new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY,0,0,0,0));
+    }
+    if (parent->lsv_enabled || parent->wt_enabled) {
+      TGVerticalFrame* frame_od  = new TGVerticalFrame(this);
+      listbox_events_od  = new TGListBox(frame_od);
+      for (size_t i = 0; i<parent->od_display_tree->GetEntries(); i++) { 
+	// Get event from tree 
+	TBranch* branch_run_id = parent->od_display_tree->GetBranch("od_run_id");
+	TBranch* branch_event_id = parent->od_display_tree->GetBranch("od_event_id");
+	branch_run_id->GetEntry(i);
+	branch_event_id->GetEntry(i);
+	// Fill title
+	std::ostringstream os;
+	os<<"r"<<std::setw(6)<<std::setfill('0')<<parent->od_run_id
+	  <<"e"<<std::setw(6)<<std::setfill('0')<<parent->od_event_id<<" ";
+	// Add to listbox
+	listbox_events_od->AddEntry(os.str().c_str(),i);
+      }
+      frame_od->AddFrame(listbox_events_od, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX | kLHintsExpandY ,0,0,10,0));
+      button_load_od = new TGTextButton(frame_od,"Load OD Event");
+      frame_od->AddFrame(button_load_od, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX,0,0,3,0));
+      AddFrame(frame_od,  new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY,0,0,0,0));
+    }
   }
+
   //________________________________________________________________________________________
   EventDisplay::TPCSPEFrame::TPCSPEFrame(const TGCompositeFrame* p) : TGGroupFrame(p, "SPE", kVerticalFrame) {
     // Draw SPE check box
@@ -1551,14 +1604,14 @@ namespace display {
   }
 
   //________________________________________________________________________________________
-  void EventDisplay::NextEvent() {
-    if (LoadEvent(current_event_id+1))
-      EventDisplay::DrawDefaultWaveform();
- }
-  void EventDisplay::PrevEvent() {
-    if (LoadEvent(current_event_id-1))
-      EventDisplay::DrawDefaultWaveform();
-  }
+ //  void EventDisplay::NextEvent() {
+ //    if (LoadEvent(current_event_id+1))
+ //      EventDisplay::DrawDefaultWaveform();
+ // }
+ //  void EventDisplay::PrevEvent() {
+ //    if (LoadEvent(current_event_id-1))
+ //      EventDisplay::DrawDefaultWaveform();
+ //  }
   
 }// end of display namespace
 
@@ -1568,20 +1621,42 @@ void PrintUsage() {
   std::cout<<"./EventDisplay od_display_output.root"<<std::endl;
   std::cout<<"./EventDisplay tpc_display_output.root od_display_output.root"<<std::endl;
   std::cout<<"./EventDisplay -d /directory/containing/tpc/display/output/files"<<std::endl;
+  std::cout<<"./EventDisplay tpc_display_output.root --3Denabled"<<std::endl;
+}
+
+std::string GetArgument(std::string argwanted, int argc, char* argv[]) {
+  for (int i=0;i<argc;i++) {
+    std::string arg = argv[i];
+    if (argwanted=="tpc" && (arg.find("tpc")!=std::string::npos)) return arg;
+    if (argwanted=="od"  && (arg.find("od") !=std::string::npos)) return arg;
+    if (argwanted=="opt" && (arg.find("--3Denabled") !=std::string::npos)) return arg;
+    if (argwanted=="mode"&& (arg.find("-d") !=std::string::npos)) return arg;
+  }
+  return "";
 }
 
 int main(int argc, char* argv[]) {
   // Check arguments
-  if (argc!=2&&argc!=3) {
+  if (argc<2||argc>4) {
     std::cout<<"Invalid usage.\n";
     PrintUsage();
     return 0;
   }
-  std::string arg1;
-  std::string arg2;
-  if (argc>1) arg1 = argv[1];
-  if (argc>2) arg2 = argv[2];
-  
+  std::string tpcfile = GetArgument("tpc",argc,argv);
+  std::string odfile  = GetArgument("od" ,argc,argv);
+  std::string option3d= GetArgument("opt",argc,argv);
+  std::string mode    = GetArgument("mode",argc,argv);
+  // std::string arg1;
+  // std::string arg2;
+  // std::string arg3;
+  // if (argc>1) arg1 = argv[1];
+  // if (argc>2) arg2 = argv[2];
+  // if (argc>3) arg3 = argv[3];
+
+  // Display 3d option
+  std::string displayoption="FI";
+  if (option3d=="--3Denabled") displayoption = "FIV"; 
+
   // Set up environment
   gEnv->SetValue("Gui.IconFont",  "-*-helvetica-medium-r-*-*-14-*-*-*-*-*-iso8859-1");
   gEnv->SetValue("Gui.StatusFont","-*-helvetica-medium-r-*-*-14-*-*-*-*-*-iso8859-1");
@@ -1601,47 +1676,47 @@ int main(int argc, char* argv[]) {
   //           ./EventDisplay -d /path/to/tpc/display/files/directory
   //
   // We check the value of the first argument to determine the mode
-  if (arg1 == "-d") {
+  if (mode == "-d") {
     // Open the display with the directory path
-    sed = new display::EventDisplay(arg2);
+    sed = new display::EventDisplay(tpcfile,displayoption);
   } else {
-    // Verify input files. Make sure root files contain 
-    // TTrees that can be read by the event display
-    TFile* f;
-    TTree* t;
-    std::string tpc_filepath="";
-    std::string  od_filepath="";
-    // Verify first file
-    if (argc>1) {
-      if (arg1.find("tpc") != std::string::npos) tpc_filepath = arg1;
-      else if (arg1.find("od") != std::string::npos) od_filepath = arg1;
-      else {
-	std::cout<<"\nError. Input file "<<arg1<<" not recognized." 
-	  "Must contain \"tpc\" or \"od\" in the file name."<<std::endl; 
-	return 0;
-      }
-      // The commented way of doing it caused a crash when just an od file was given
-      // f = new TFile(arg1.c_str(),"UPDATE");
-      // if (f->FindObjectAny("tpc_display_tree")) tpc_filepath = arg1;
-      // if (f->FindObjectAny("od_display_tree"))  od_filepath  = arg1;
-      // f->Close();
-    }
-    // Verify second file
-    if (argc>2) {
-      if (arg2.find("tpc") != std::string::npos) tpc_filepath = arg2;
-      else if (arg2.find("od") != std::string::npos) od_filepath = arg2;
-      else {
-	std::cout<<"\nError. Input file "<<arg2<<" not recognized." 
-	  "Must contain \"tpc\" or \"od\" in the file name."<<std::endl; 
-	return 0;
-      }
-    }
-    if (tpc_filepath==""&&od_filepath=="") {
+    // // Verify input files. Make sure root files contain 
+    // // TTrees that can be read by the event display
+    // TFile* f;
+    // TTree* t;
+    // std::string tpc_filepath="";
+    // std::string  od_filepath="";
+    // // Verify first file
+    // if (argc>1) {
+    //   if (arg1.find("tpc") != std::string::npos) tpc_filepath = arg1;
+    //   else if (arg1.find("od") != std::string::npos) od_filepath = arg1;
+    //   else {
+    // 	std::cout<<"\nError. Input file "<<arg1<<" not recognized." 
+    // 	  "Must contain \"tpc\" or \"od\" in the file name."<<std::endl; 
+    // 	return 0;
+    //   }
+    //   // The commented way of doing it caused a crash when just an od file was given
+    //   // f = new TFile(arg1.c_str(),"UPDATE");
+    //   // if (f->FindObjectAny("tpc_display_tree")) tpc_filepath = arg1;
+    //   // if (f->FindObjectAny("od_display_tree"))  od_filepath  = arg1;
+    //   // f->Close();
+    // }
+    // // Verify second file
+    // if (argc>2) {
+    //   if (arg2.find("tpc") != std::string::npos) tpc_filepath = arg2;
+    //   else if (arg2.find("od") != std::string::npos) od_filepath = arg2;
+    //   else {
+    // 	std::cout<<"\nError. Input file "<<arg2<<" not recognized." 
+    // 	  "Must contain \"tpc\" or \"od\" in the file name."<<std::endl; 
+    // 	return 0;
+    //   }
+    // }
+    if (tpcfile==""&&odfile=="") {
       std::cout<<"\nError: No events found. Aborting."<<std::endl;
       return 0;
     }
     // Open the display
-    sed = new display::EventDisplay(tpc_filepath,od_filepath);
+    sed = new display::EventDisplay(tpcfile,odfile,displayoption);
   }
   std::cout<<"Loaded display."<<std::endl;
   if (!sed) {
