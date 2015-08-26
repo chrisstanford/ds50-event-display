@@ -1,7 +1,4 @@
 #!/bin/bash
-# Set fcl files to be used
-tpcfcl=tpcdisplay.fcl
-odfcl=oddisplay.fcl
 
 # Usage info                                                                                                                 
 show_help() {
@@ -32,6 +29,12 @@ If you want to look at 5 consecutive events in the OD starting at event 300
 If you want to save the display output root files but don't want to open up the display:
 ./darkdisplay.sh -t -r 5475 -e 42474 --nodisplay
 
+If you want to show the V1724 waveforms for the TPC (will only work for runs that have V1724 data obviously)
+./darkdisplay.sh -t -r 12561 -e 20644 --useV1724
+
+If you want to enable 3D event reconstruction
+./darkdisplay.sh -t -r 5475 -e 42474 --enable3D
+
 * See redmine wiki on how to open up root files you've already created
 EOF
 }
@@ -39,6 +42,7 @@ EOF
 tpc_enabled=false
 od_enabled=false
 current_directory="${PWD}";
+enabled_3d=""
 # Get command line options
 while getopts "htor:e:c:f:d:-:" opt; do
     case "$opt" in
@@ -66,9 +70,22 @@ while getopts "htor:e:c:f:d:-:" opt; do
 		"nodisplay"*) nodisplay=true
 		    ;;
 		"usebestguess"*) usebestguess=true
+		    ;;
+		"useV1724"*) useV1724=true
+		    ;;
+		"enable3D"*) enabled_3d="--enable3D";
 	    esac
     esac
 done
+
+# Set fcl files to be used
+if [ "$useV1724" = "true" ]; then
+    tpcfcl=tpcdisplay_V1724.fcl
+else 
+    tpcfcl=tpcdisplay.fcl
+fi
+odfcl=oddisplay.fcl
+
 
 # Verify inputs 
 if [[ "$tpc_enabled" = "false" ]] && [[ "$od_enabled" = "false" ]]; then
@@ -215,11 +232,11 @@ if [ "$nodisplay" = true ]; then
 fi
 
 if [[ "$tpc_enabled" = "true" && "$od_enabled" = "true" ]]; then
-    /ds50/app/user/jcjs/work/EventDisplay/EventDisplay "${tpc_display_output}" "${od_display_output}"
+    /ds50/app/user/jcjs/work/EventDisplay/EventDisplay "${tpc_display_output}" "${od_display_output}" "${enabled_3d}"
 elif [ "$tpc_enabled" = "true" ]; then
-    /ds50/app/user/jcjs/work/EventDisplay/EventDisplay "${tpc_display_output}"
+    /ds50/app/user/jcjs/work/EventDisplay/EventDisplay "${tpc_display_output}" "${enabled_3d}"
 elif [ "$od_enabled" = "true" ]; then
-    /ds50/app/user/jcjs/work/EventDisplay/EventDisplay "${od_display_output}"
+    /ds50/app/user/jcjs/work/EventDisplay/EventDisplay "${od_display_output}" "${enabled_3d}"
 else
     printf "\nERROR: No detectors were enabled! See usage: ./darkdisplay -h\n"
     kill -INT $$ # Stop the script
