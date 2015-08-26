@@ -6,7 +6,7 @@
 #include "TObjArray.h"
 
 namespace display {
-  enum channeltype {kSingleChannel,kSumChannel=1000,kAllChannel=1001};
+  enum channeltype {kSingleChannel,kSumChannel=1000,kAllChannel=1001,kSelectedChannel=1002};
 
   struct LSVROI {
     int    id;
