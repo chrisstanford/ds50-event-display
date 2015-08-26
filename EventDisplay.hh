@@ -269,7 +269,7 @@ namespace display {
     void LoadDirectory(std::string directory); 
     void SetBranchAddresses();
     //    int  LoadEvent(int); 
-    void DrawDefaultWaveform();
+    void DrawDefaultWaveform(std::string detector);
     void DrawTPCPulses(int ch);     
     void DrawTPCSPEs(int ch);
     void DrawLSVClusters();     
