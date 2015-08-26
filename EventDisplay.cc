@@ -77,44 +77,72 @@ namespace display {
   //________________________________________________________________________________________
   void EventDisplay::LoadDirectory(std::string directory) {
     std::cout<<"Loading directory "<<directory<<std::endl;
-    // Make chain out of all files in directory. Currently only works for tpc
-    TChain* settings_chain = new TChain("display/tpc_settings_tree");
-    TChain* display_chain = new TChain("display/tpc_display_tree");
-    char* dir = gSystem->ExpandPathName(directory.c_str());
-    void* dirp = gSystem->OpenDirectory(dir);
-    const char* filename;
-    TString str, sub;
-    std::ostringstream os;
-    while((filename = (char*)gSystem->GetDirEntry(dirp))) {
-      str = filename;
-      if(!str.BeginsWith("tpc"))
-	continue;
-      if(!str.EndsWith(".root"))
-	continue;
-      TString filepath = directory+"/";
-      filepath+=str;
-      std::cout<<"Adding "<<filepath<<" to chain.\n";
-      settings_chain->Add(filepath);
-      display_chain->Add(filepath);
+    // TPC
+    {
+      // Make chain out of all files in directory
+      TChain* settings_chain = new TChain("display/tpc_settings_tree");
+      TChain* display_chain = new TChain("display/tpc_display_tree");
+      char* dir = gSystem->ExpandPathName(directory.c_str());
+      void* dirp = gSystem->OpenDirectory(dir);
+      const char* filename;
+      TString str, sub;
+      while((filename = (char*)gSystem->GetDirEntry(dirp))) {
+	str = filename;
+	if(!str.BeginsWith("tpc"))
+	  continue;
+	if(!str.EndsWith(".root"))
+	  continue;
+	TString filepath = directory+"/";
+	filepath+=str;
+	std::cout<<"Adding "<<filepath<<" to chain.\n";
+	settings_chain->Add(filepath);
+	display_chain->Add(filepath);
+      }
+      if (!settings_chain || !display_chain) {
+	std::cout<<"\nError: No valid TPC events found in "<<directory<<".\n\n";
+	return;
+      }
+      tpc_settings_tree = settings_chain;
+      tpc_display_tree = display_chain;
+      std::cout<<"Found a total of "<<tpc_display_tree->GetEntries()<<" events."<<std::endl; 
+      if (!tpc_settings_tree || !tpc_display_tree) {
+	std::cout<<"No display trees were found"<<std::endl;
+	return;
+      }
     }
-    if (!settings_chain || !display_chain) {
-      std::cout<<"\nError: No valid TPC events found in "<<directory<<".\n\n";
-      return;
+    // OD
+    {
+      // Make chain out of all files in directory
+      TChain* settings_chain = new TChain("display/od_settings_tree");
+      TChain* display_chain = new TChain("display/od_display_tree");
+      char* dir = gSystem->ExpandPathName(directory.c_str());
+      void* dirp = gSystem->OpenDirectory(dir);
+      const char* filename;
+      TString str, sub;
+      while((filename = (char*)gSystem->GetDirEntry(dirp))) {
+	str = filename;
+	if(!str.BeginsWith("od"))
+	  continue;
+	if(!str.EndsWith(".root"))
+	  continue;
+	TString filepath = directory+"/";
+	filepath+=str;
+	std::cout<<"Adding "<<filepath<<" to chain.\n";
+	settings_chain->Add(filepath);
+	display_chain->Add(filepath);
+      }
+      if (!settings_chain || !display_chain) {
+	std::cout<<"\nError: No valid OD events found in "<<directory<<".\n\n";
+	return;
+      }
+      od_settings_tree = settings_chain;
+      od_display_tree = display_chain;
+      std::cout<<"Found a total of "<<od_display_tree->GetEntries()<<" events."<<std::endl; 
+      if (!od_settings_tree || !od_display_tree) {
+	std::cout<<"No display trees were found"<<std::endl;
+	return;
+      }
     }
-    // The TChain::GetEntries command generates a tree in the TChain data structure
-    //    settings_chain->GetEntries();
-    //    display_chain->GetEntries();
-    //    tpc_settings_tree = settings_chain->GetTree();
-    //    tpc_display_tree = display_chain->GetTree();
-    tpc_settings_tree = settings_chain;
-    tpc_display_tree = display_chain;
-    std::cout<<"Found a total of "<<tpc_display_tree->GetEntries()<<" events."<<std::endl; 
-    if (!tpc_settings_tree || !tpc_display_tree) {
-      std::cout<<"No display trees were found"<<std::endl;
-      return;
-    }
-    //    std::cout<<tpc_settings_tree->GetEntries()<<"\n";
-    //    std::cout<<tpc_display_tree->GetEntries()<<"\n";
     EventDisplay::SetBranchAddresses();
   }  
 
@@ -176,7 +204,7 @@ namespace display {
     else if (detectortab=="lsv") selected = lsv_event_selection_frame->listbox_events_tpc->GetSelected();
     else if (detectortab=="wt" ) selected =  wt_event_selection_frame->listbox_events_tpc->GetSelected();
     else selected = 0;
-    std::cout<<"Loading event."<<std::endl;
+    std::cout<<"Loading TPC event."<<std::endl;
     // Check if event exists
     if (selected >= tpc_display_tree->GetEntries() || selected < 0) {
       std::cout<<"Invalid event."<<std::endl;
@@ -243,6 +271,7 @@ namespace display {
 	tpc_spe_vec.push_back(s);
       }  
     }
+    if (canvas) EventDisplay::DrawDefaultWaveform("tpc");
     std::cout<<"Event loaded."<<std::endl;
     return 1;
   }
@@ -251,7 +280,7 @@ namespace display {
   int EventDisplay::LoadEventOD(const char* dettab) {
     if (!lsv_enabled&&!wt_enabled) return 0;
     // Load OD event
-    std::cout<<"Loading event."<<std::endl;
+    std::cout<<"Loading OD event."<<std::endl;
     const std::string detectortab = dettab;
     int selected;
     if      (detectortab=="tpc") selected = tpc_event_selection_frame->listbox_events_od->GetSelected();
@@ -323,6 +352,8 @@ namespace display {
 	lsv_roi_vec.push_back(r);
       }  
     }
+    if (canvas && lsv_enabled) EventDisplay::DrawDefaultWaveform("lsv");
+    else if (canvas && wt_enabled) EventDisplay::DrawDefaultWaveform("wt");
     std::cout<<"Event loaded."<<std::endl;
     return 1;
   }
@@ -338,7 +369,7 @@ namespace display {
     if (enabled_3d) CreateOptionsTab();
     if (enabled_3d) CreateGeometry();
     GetBrowser()->GetTabLeft()->SetTab(2);    
-    EventDisplay::DrawDefaultWaveform();
+    EventDisplay::DrawDefaultWaveform("");
   }
 
   ///////////////////////////////////////
@@ -514,21 +545,23 @@ namespace display {
     if (parent->tpc_enabled) {
       TGVerticalFrame* frame_tpc = new TGVerticalFrame(this);
       listbox_events_tpc = new TGListBox(frame_tpc);
+      // Get run/event info
+      parent->tpc_display_tree->SetBranchStatus("*",0);
+      parent->tpc_display_tree->SetBranchStatus("tpc_run_id",1);
+      parent->tpc_display_tree->SetBranchStatus("tpc_event_id",1);
       for (size_t i = 0; i<parent->tpc_display_tree->GetEntries(); i++) { 
-	// Get event from tree 
-	int run_id;
-	int event_id;
-	TBranch* branch_run_id = parent->tpc_display_tree->GetBranch("tpc_run_id");
-	TBranch* branch_event_id = parent->tpc_display_tree->GetBranch("tpc_event_id");
-	branch_run_id->GetEntry(i);
-	branch_event_id->GetEntry(i);
+	// Get event from tree
+	parent->tpc_display_tree->GetEntry(i);
 	// Fill title
 	std::ostringstream os;
 	os<<"r"<<std::setw(6)<<std::setfill('0')<<parent->tpc_run_id
 	  <<"e"<<std::setw(6)<<std::setfill('0')<<parent->tpc_event_id<<" ";
 	// Add to listbox
+	//	std::cout<<os.str()<<std::endl;
 	listbox_events_tpc->AddEntry(os.str().c_str(),i);
       }
+      parent->tpc_display_tree->GetEntry(0); // Back to first
+      parent->tpc_display_tree->SetBranchStatus("*",1);
       frame_tpc->AddFrame(listbox_events_tpc, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX | kLHintsExpandY ,0,0,10,0));
       button_load_tpc = new TGTextButton(frame_tpc,"Load TPC Event");
       frame_tpc->AddFrame(button_load_tpc, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX,0,0,3,0));
@@ -537,12 +570,13 @@ namespace display {
     if (parent->lsv_enabled || parent->wt_enabled) {
       TGVerticalFrame* frame_od  = new TGVerticalFrame(this);
       listbox_events_od  = new TGListBox(frame_od);
+      // Get run/event info
+      parent->od_display_tree->SetBranchStatus("*",0);
+      parent->od_display_tree->SetBranchStatus("od_run_id",1);
+      parent->od_display_tree->SetBranchStatus("od_event_id",1);
       for (size_t i = 0; i<parent->od_display_tree->GetEntries(); i++) { 
 	// Get event from tree 
-	TBranch* branch_run_id = parent->od_display_tree->GetBranch("od_run_id");
-	TBranch* branch_event_id = parent->od_display_tree->GetBranch("od_event_id");
-	branch_run_id->GetEntry(i);
-	branch_event_id->GetEntry(i);
+	parent->od_display_tree->GetEntry(i);
 	// Fill title
 	std::ostringstream os;
 	os<<"r"<<std::setw(6)<<std::setfill('0')<<parent->od_run_id
@@ -550,6 +584,8 @@ namespace display {
 	// Add to listbox
 	listbox_events_od->AddEntry(os.str().c_str(),i);
       }
+      parent->od_display_tree->GetEntry(0); // Back to first
+      parent->od_display_tree->SetBranchStatus("*",1);
       frame_od->AddFrame(listbox_events_od, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX | kLHintsExpandY ,0,0,10,0));
       button_load_od = new TGTextButton(frame_od,"Load OD Event");
       frame_od->AddFrame(button_load_od, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX,0,0,3,0));
@@ -791,20 +827,18 @@ namespace display {
   }
 
   //________________________________________________________________________________________
-  void EventDisplay::DrawDefaultWaveform() {
+  void EventDisplay::DrawDefaultWaveform(std::string detector) {
     // Currently set to draw sum waveform. 
     // Call this function after loading a new event.
-    if (tpc_enabled) {
-      //      tpc_wf_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
-      EventDisplay::DrawWaveform("tpc");
-    } else if (lsv_enabled) {
-      //      lsv_ampl_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
-      EventDisplay::DrawWaveform("lsv_ampl");
-    } else if (wt_enabled) {
-      //      wt_ampl_frame->listbox_waveforms->Select(display::channeltype::kSumChannel);
-      EventDisplay::DrawWaveform("wt_ampl");
-    }
+    if      (detector=="tpc") EventDisplay::DrawWaveform("tpc");
+    else if (detector=="lsv") EventDisplay::DrawWaveform("lsv_ampl");
+    else if (detector=="wt")  EventDisplay::DrawWaveform("wt_ampl");
+    else if (tpc_enabled)     EventDisplay::DrawWaveform("tpc");
+    else if (lsv_enabled)     EventDisplay::DrawWaveform("lsv_ampl");
+    else if (wt_enabled)      EventDisplay::DrawWaveform("wt_ampl");
+    else return;
   }
+  
 
   //________________________________________________________________________________________
   bool EventDisplay::IsWaveformDrawn() {
