@@ -34,6 +34,8 @@
 #include "TGString.h"
 #include "TApplication.h"
 #include "TSystem.h"
+#include "TObjArray.h"
+#include "TObjString.h"
 
 // eve includes
 #include "TEveManager.h"
@@ -91,8 +93,14 @@ namespace display {
     class WaveformFrame : public TGGroupFrame {
     public:
       WaveformFrame(std::string title, TMultiGraph* mg_sum, TMultiGraph* mg_chan, const TGCompositeFrame* p);
+      //      bool                GetSelectedEntryIDs(TList* selected);
+      //      void                ToggleMultipleSelection();
       TGListBox*          listbox_waveforms;
       TGTextButton*       button_draw;
+      //      TGCheckButton*      check_multi;
+      TGLabel*            label_combine_channels;
+      TGTextEntry*          entry_combine_channels;
+      ClassDef(WaveformFrame,1);
     };
     class TPCPulseFrame : public TGGroupFrame {
     public:

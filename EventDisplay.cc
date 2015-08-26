@@ -465,6 +465,7 @@ namespace display {
 
   //________________________________________________________________________________________
   EventDisplay::WaveformFrame::WaveformFrame(std::string title, TMultiGraph* mg_sum, TMultiGraph* mg_chan, const TGCompositeFrame* p) : TGGroupFrame(p, title.c_str(), kVerticalFrame) {
+    // Make waveform frame
     listbox_waveforms = new TGListBox(this);
     listbox_waveforms->AddEntry("Sum Channels",display::channeltype::kSumChannel);
     listbox_waveforms->AddEntry("All Channels",display::channeltype::kAllChannel);
@@ -481,9 +482,31 @@ namespace display {
     }
     listbox_waveforms->Select(display::channeltype::kSumChannel);
     AddFrame(listbox_waveforms, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandY | kLHintsExpandX,0,0,10,0));
+    TGHorizontalFrame* frame_combine_channels = new TGHorizontalFrame(this);
+    label_combine_channels = new TGLabel(frame_combine_channels,"Combine channels\n(e.g. 2,6,8)");
+    frame_combine_channels->AddFrame(label_combine_channels, new TGLayoutHints(kLHintsLeft | kLHintsExpandX,0,0,0,2));
+    entry_combine_channels = new TGTextEntry(frame_combine_channels, "");
+    frame_combine_channels->AddFrame(entry_combine_channels, new TGLayoutHints(kLHintsLeft | kLHintsExpandX,0,0,2,0));
+    AddFrame(frame_combine_channels, new TGLayoutHints(kLHintsLeft | kLHintsExpandX));
+    // check_multi = new TGCheckButton(frame_buttons,"Multiselect");
+    // check_multi->SetState(kButtonUp);
+    // frame_buttons->AddFrame(check_multi, new TGLayoutHints(kLHintsLeft | kLHintsExpandX,2,2,2,2));
+    //    check_multi->Connect("Clicked()","display::EventDisplay::WaveformFrame",this,"ToggleMultipleSelection()");
+    // Draw button
     button_draw = new TGTextButton(this,"Draw");
-    AddFrame(button_draw, new TGLayoutHints(kLHintsBottom | kLHintsExpandX));
+    AddFrame(button_draw, new TGLayoutHints(kLHintsLeft | kLHintsExpandX));
   }
+
+  // //________________________________________________________________________________________
+  // bool EventDisplay::WaveformFrame::GetSelectedEntryIDs(TList* selected) {
+  //   std::cout<<"Hello\n";
+  // }
+
+  // //________________________________________________________________________________________
+  // void EventDisplay::WaveformFrame::ToggleMultipleSelection() {
+  //   //    std::cout<<"Hello\n";
+  //   //    listbox_waveforms->SetMultipleSelections(check_multi->GetState());
+  // }
 
   //________________________________________________________________________________________
   EventDisplay::EventSelectionFrame::EventSelectionFrame(const EventDisplay* parent, const TGCompositeFrame* p) : TGGroupFrame(p, "Event Selection",kHorizontalFrame), parent(parent) {
@@ -499,7 +522,6 @@ namespace display {
 	TBranch* branch_event_id = parent->tpc_display_tree->GetBranch("tpc_event_id");
 	branch_run_id->GetEntry(i);
 	branch_event_id->GetEntry(i);
-	std::cout<<parent->tpc_run_id<<" "<<parent->tpc_event_id<<"\n";
 	// Fill title
 	std::ostringstream os;
 	os<<"r"<<std::setw(6)<<std::setfill('0')<<parent->tpc_run_id
@@ -650,36 +672,42 @@ namespace display {
   //________________________________________________________________________________________
   void EventDisplay::DrawWaveform(const char* charinput) {
     const std::string input = charinput;
-    int selected;
     TMultiGraph* mg_sum;
     TMultiGraph* mg_chan;
+    WaveformFrame* wf_frame;
     if (input=="tpc") {
       mg_sum =  tpc_sum;
       mg_chan = tpc_chan;
-      selected = tpc_wf_frame->listbox_waveforms->GetSelected();
+      wf_frame = tpc_wf_frame;
     }
     if (input=="lsv_ampl") {
       mg_sum =  lsv_ampl_sum;
       mg_chan = lsv_ampl_chan;
-      selected = lsv_ampl_frame->listbox_waveforms->GetSelected();
+      wf_frame = lsv_ampl_frame;
     }
     if (input=="lsv_disc") {
       mg_sum =  lsv_disc_sum;
       mg_chan = lsv_disc_chan;
-      selected = lsv_disc_frame->listbox_waveforms->GetSelected();
+      wf_frame = lsv_disc_frame;
     }
     if (input=="wt_ampl") {
       mg_sum =  wt_ampl_sum;
       mg_chan = wt_ampl_chan;
-      selected = wt_ampl_frame->listbox_waveforms->GetSelected();
+      wf_frame = wt_ampl_frame;
     }
     if (input=="wt_disc") {
       mg_sum =  wt_disc_sum;
       mg_chan = wt_disc_chan;
-      selected = wt_disc_frame->listbox_waveforms->GetSelected();
+      wf_frame = wt_disc_frame;
     }
     if (!mg_sum)  return;
     if (!mg_chan) return;
+    // Determine selection
+    int selected = wf_frame->listbox_waveforms->GetSelected();
+    TString tstr_multi_chan = wf_frame->entry_combine_channels->GetText();
+    // Get list of channels in text box
+    TObjArray* tobjarr_multi_chan = tstr_multi_chan.Tokenize(",");
+    if (tobjarr_multi_chan->GetEntries()>0) selected=display::channeltype::kSelectedChannel;
     // Get previous axis limits
     bool is_drawn = EventDisplay::IsWaveformDrawn();
     std::string prev_det = EventDisplay::GetDetectorInActivePad();
@@ -688,7 +716,36 @@ namespace display {
     // Draw waveform
     TCanvas* c = gPad->GetCanvas();
     c->Clear();
-    if (selected == display::channeltype::kSumChannel) {
+    // Draw waveforms
+    if (selected==display::channeltype::kSelectedChannel) {
+      // Make new title
+      TString oldtitle = mg_chan->GetTitle();
+      TString newtitle = oldtitle(0,oldtitle.First(";")-12); newtitle += "Channels ";
+      // Make new name
+      TString tstr_input = input;
+      TString newname  = "mg_"; newname += input+"_selected_chan";
+      // Make new multigraph
+      TMultiGraph* mg = new TMultiGraph(newname,newtitle);
+      for (int i=0;i<tobjarr_multi_chan->GetEntries();i++) {
+	const TString tstr_chan = ((TObjString*)tobjarr_multi_chan->At(i))->GetString();
+	const int ch_id = tstr_chan.Atoi();
+	const int mg_id = EventDisplay::GetMultigraphIDFromChannelID(ch_id, mg_chan);
+	if (mg_id<0) {std::cout<<"No graph was found for channel "<<ch_id<<"."<<std::endl;continue;}
+	TGraph* gr = (TGraph*)(mg_chan->GetListOfGraphs()->At(mg_id));
+	if (!gr) {std::cout<<"No graph was found for channel "<<ch_id<<"."<<std::endl; continue;}
+	newtitle += ch_id;
+	newtitle += ",";
+	mg->Add(gr);
+      }
+      if (!mg->GetListOfGraphs()) {std::cout<<"No graphs were found for specified channels."<<std::endl;c->Update();return;}
+      // Cut off ending comma
+      newtitle = newtitle(0,newtitle.Length()-1);
+      // Add Axis titles
+      newtitle += oldtitle(oldtitle.First(";"),oldtitle.Length()-oldtitle.First(";"));
+      mg->SetTitle(newtitle);
+      // Draw new mulitgraph
+      mg->Draw("al");
+    } else if (selected == display::channeltype::kSumChannel) {
       if (input=="tpc" && !EventDisplay::MultiGraphContainsIntegral(mg_sum)) { // add integral 
 	TGraph* gr = (TGraph*)(mg_sum->GetListOfGraphs()->First());
 	if (!gr) return;
@@ -878,7 +935,7 @@ namespace display {
     //    std::cout<<str_ch_id<<std::endl;
     int ch_id = std::stoi(str_ch_id,&sz);
     return ch_id;
-}
+  }
 
   //________________________________________________________________________________________
   int EventDisplay::GetMultigraphIDFromChannelID(int ch_id, TMultiGraph* mg) {
@@ -893,12 +950,12 @@ namespace display {
       if (last_index==std::string::npos) continue;
       std::string str_ch = gr_name.substr(last_index + 1);  
       std::string::size_type sz;
-      std::cout<<str_ch<<std::endl;
+      //      std::cout<<str_ch<<std::endl;
       int ch = std::stoi(str_ch,&sz);
-      if (ch==ch_id) return ch;
+      if (ch==ch_id) return i;
     }
     return -1;
-}
+  }
   
   //________________________________________________________________________________________
   std::string EventDisplay::TPCorOD(std::string detector) {
