@@ -1711,8 +1711,8 @@ void PrintUsage() {
   std::cout<<"./EventDisplay tpc_display_output.root"<<std::endl;
   std::cout<<"./EventDisplay od_display_output.root"<<std::endl;
   std::cout<<"./EventDisplay tpc_display_output.root od_display_output.root"<<std::endl;
-  std::cout<<"./EventDisplay -d /directory/containing/tpc/display/output/files"<<std::endl;
-  std::cout<<"./EventDisplay tpc_display_output.root --3Denabled"<<std::endl;
+  std::cout<<"./EventDisplay -d /directory/containing/display/output/files"<<std::endl;
+  std::cout<<"To enable 3D, add on the option: --enable3D"<<std::endl;
 }
 
 std::string GetArgument(std::string argwanted, int argc, char* argv[]) {
@@ -1720,7 +1720,7 @@ std::string GetArgument(std::string argwanted, int argc, char* argv[]) {
     std::string arg = argv[i];
     if (argwanted=="tpc" && (arg.find("tpc")!=std::string::npos)) return arg;
     if (argwanted=="od"  && (arg.find("od") !=std::string::npos)) return arg;
-    if (argwanted=="opt" && (arg.find("--3Denabled") !=std::string::npos)) return arg;
+    if (argwanted=="opt" && (arg.find("--enable3D") !=std::string::npos)) return arg;
     if (argwanted=="mode"&& (arg.find("-d") !=std::string::npos)) return arg;
   }
   return "";
@@ -1746,7 +1746,7 @@ int main(int argc, char* argv[]) {
 
   // Display 3d option
   std::string displayoption="FI";
-  if (option3d=="--3Denabled") displayoption = "FIV"; 
+  if (option3d=="--enable3D") displayoption = "FIV"; 
 
   // Set up environment
   gEnv->SetValue("Gui.IconFont",  "-*-helvetica-medium-r-*-*-14-*-*-*-*-*-iso8859-1");
