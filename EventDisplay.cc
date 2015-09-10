@@ -11,10 +11,10 @@ namespace display {
     lsv_geo_enabled(false),
     wt_geo_enabled(false)
   {
-    if (tpc_settings_tree) std::cout<<tpc_settings_tree<<" tpctreeexists1!8\n";
-    if (tpc_display_tree) std::cout<<"tpctreeexists2!8\n";
-    if (od_settings_tree) std::cout<<od_settings_tree<<" odtreeexists1!8\n";
-    if (od_display_tree) std::cout<<od_display_tree<<" odtreeexists2!8\n";
+    // if (tpc_settings_tree) std::cout<<tpc_settings_tree<<" tpctreeexists1!8\n";
+    // if (tpc_display_tree) std::cout<<"tpctreeexists2!8\n";
+    // if (od_settings_tree) std::cout<<od_settings_tree<<" odtreeexists1!8\n";
+    // if (od_display_tree) std::cout<<od_display_tree<<" odtreeexists2!8\n";
     if (option.find("V") != std::string::npos) enabled_3d = true;
     else enabled_3d = false;
     //    std::cout<<"Please ignore libGL errors."<<std::endl;
@@ -104,7 +104,7 @@ namespace display {
       }
       tpc_settings_tree = settings_chain;
       tpc_display_tree = display_chain;
-      std::cout<<"Found a total of "<<tpc_display_tree->GetEntries()<<" events."<<std::endl; 
+      std::cout<<"Found a total of "<<tpc_display_tree->GetEntries()<<" TPC events."<<std::endl; 
       if (!tpc_settings_tree || !tpc_display_tree) {
 	std::cout<<"No display trees were found"<<std::endl;
 	return;
@@ -137,7 +137,7 @@ namespace display {
       }
       od_settings_tree = settings_chain;
       od_display_tree = display_chain;
-      std::cout<<"Found a total of "<<od_display_tree->GetEntries()<<" events."<<std::endl; 
+      std::cout<<"Found a total of "<<od_display_tree->GetEntries()<<" OD events."<<std::endl; 
       if (!od_settings_tree || !od_display_tree) {
 	std::cout<<"No display trees were found"<<std::endl;
 	return;
@@ -361,8 +361,10 @@ namespace display {
   //________________________________________________________________________________________
   void EventDisplay::Create() {
     // Load first event in display tree
-    if (tpc_enabled) LoadEventTPC("");
-    if (lsv_enabled||wt_enabled) LoadEventOD("");
+    if (tpc_enabled)
+      if (!LoadEventTPC("")) return;
+    if (lsv_enabled||wt_enabled) 
+      if (!LoadEventOD("")) return;
     // Create Tabs
     CreateWaveformTab();
     CreateCanvas();
@@ -1722,6 +1724,7 @@ std::string GetArgument(std::string argwanted, int argc, char* argv[]) {
     if (argwanted=="od"  && (arg.find("od") !=std::string::npos)) return arg;
     if (argwanted=="opt" && (arg.find("--enable3D") !=std::string::npos)) return arg;
     if (argwanted=="mode"&& (arg.find("-d") !=std::string::npos)) return arg;
+    if (argwanted=="dir" && (arg.find("-d") !=std::string::npos)) return argv[i+1];
   }
   return "";
 }
@@ -1737,6 +1740,7 @@ int main(int argc, char* argv[]) {
   std::string odfile  = GetArgument("od" ,argc,argv);
   std::string option3d= GetArgument("opt",argc,argv);
   std::string mode    = GetArgument("mode",argc,argv);
+  std::string directory=GetArgument("dir",argc,argv);
   // std::string arg1;
   // std::string arg2;
   // std::string arg3;
@@ -1769,7 +1773,7 @@ int main(int argc, char* argv[]) {
   // We check the value of the first argument to determine the mode
   if (mode == "-d") {
     // Open the display with the directory path
-    sed = new display::EventDisplay(tpcfile,displayoption);
+    sed = new display::EventDisplay(directory,displayoption);
   } else {
     // // Verify input files. Make sure root files contain 
     // // TTrees that can be read by the event display

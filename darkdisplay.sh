@@ -86,6 +86,10 @@ else
 fi
 odfcl=oddisplay.fcl
 
+# Remove leading zeros
+run=$((10#$run))
+event=$((10#$event))
+
 
 # Verify inputs 
 if [[ "$tpc_enabled" = "false" ]] && [[ "$od_enabled" = "false" ]]; then
@@ -150,20 +154,22 @@ od_display_output : \"${od_display_output}\"\n\
 tpc_display_output : \"${tpc_display_output}\"\n"\
 >event_selection.fcl
 
+# # Check if run is defined
+# if [ -z "$run" ]; then
+#     printf "\nERROR: No run specified!\n"
+#     kill -INT $$ # Stop the script
+# fi
+
+
 ###########
 # TPC art #
 ###########
 if [ "$tpc_enabled" = "true" ]; then
-    # Check if run is defined
-    if [ -z "$run" ]; then
-	printf "\nERROR: No run specified!\n"
-	kill -INT $$ # Stop the script
-    fi
 
     # Get subrun
     subrun=$(/ds50/app/user/jcjs/work/SubrunListGenerator/GetSubrun.sh $run $event)
     # Check to make sure subrun was found
-    if [ $subrun == 0 ]; then
+    if [ "$subrun" = "0" ]; then
 	printf "\nCould not find subrun for run $run event $event\n"
 	eventspersubrun=$(/ds50/app/user/jcjs/work/SubrunListGenerator/GetEventsPerSubrun.sh $run)
 	guess=$(( $event/$eventspersubrun + 1 ))
@@ -183,23 +189,42 @@ if [ "$tpc_enabled" = "true" ]; then
     kx509
     voms-proxy-init --noregen --voms fermilab:/fermilab/darkside
     
-    run=$(printf "%06d\n" $run)
-    subrun=$(printf "%03d\n" $subrun)
-    
+    FULLRUNNUM=$(printf "%06d\n" $run)
+    FULLSUBNUM=$(printf "%03d\n" $subrun)   
     echo "Retrieving file list..."
-    let mathfriendly=10#$run
+    let mathfriendly=10#$FULLRUNNUM
     type=commissioning
+    echo "Searching in $type "
     if [ ${mathfriendly} -lt 7560 ]; then
-	tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${run:0:2}xxxx/Run${run:0:4}xx/ds50_r${run}_sr${subrun}*.root | awk '{print $8}' `
+	tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:4}xx/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
     else
-	tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${run:0:2}xxxx/Run${run:0:5}x/ds50_r${run}_sr${subrun}*.root | awk '{print $8}' `
-	if [ -n "$tpcfile" ]; then
-            type="commissioning"
-	else
-	    type="calibration"
-            tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${run:0:2}xxxx/Run${run:0:5}x/ds50_r${run}_sr${subrun}*.root | awk '{print $8}' `
+	tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:5}x/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
+
+	if [ ! -n "$tpcfile" ]; then
+            type="calibration"
+	    echo "Searching in $type "
+            tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:5}x/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
+	fi
+	if [ ! -n "$tpcfile" ]; then
+	    type="wimp_search"
+	    echo "Searching in $type "
+	    tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:5}x/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
 	fi
     fi
+
+
+
+    # if [ ${mathfriendly} -lt 7560 ]; then
+    # 	tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:4}xx/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
+    # else
+    # 	tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:5}x/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
+    # 	if [ -n "$tpcfile" ]; then
+    #         type="commissioning"
+    # 	else
+    # 	    type="calibration"
+    #         tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:5}x/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
+    # 	fi
+    # fi
 
     # Run art on tpc file
     art -c $tpcfcl xroot://fndca4a.fnal.gov:1094/pnfs/fnal.gov/usr/darkside/$tpcfile
@@ -210,14 +235,52 @@ fi
 ##########
 if [ "$od_enabled" = "true" ]; then
     # Check if path to first subrun is defined
-    if [ -z "$odfile_subrun1" ]; then
-	printf "\nERROR: No path to first subrun was specified!\n"
-	kill -INT $$ # Stop the script
+    # if [ -z "$odfile_subrun1" ]; then
+    # 	printf "\nERROR: No path to first subrun was specified!\n"
+    # 	kill -INT $$ # Stop the script
+    # fi
+    
+    # Get subrun
+    echo /ds50/app/user/jcjs/work/SubrunListGenerator/GetSubrunOD.sh $run $event
+    subrun=$(/ds50/app/user/jcjs/work/SubrunListGenerator/GetSubrunOD.sh $run $event)
+    # Check to make sure subrun was found
+    if [ "$subrun" = "0" ]; then
+	printf "\nCould not find subrun for run $run event $event\n"
+	eventspersubrun=$(/ds50/app/user/jcjs/work/SubrunListGenerator/GetEventsPerSubrunOD.sh $run)
+	guess=$(( $event/$eventspersubrun + 1 ))
+	if [ "$usebestguess" = true ]; then
+	    printf "\nWarning: Using best-guess subrun: ($guess)\n\n"
+	    subrun=$guess
+	else
+	    printf "Enter subrun, or press enter to use best-guess subrun ($guess): "
+	    read subrun
+	    if [ -z "$subrun" ]; then
+		subrun=$guess
+	    fi
+	fi
     fi
     
-    art -c $odfcl $odfile_subrun1
+    # Copy OD run to scratch    
+    kx509
+    voms-proxy-init --noregen --voms fermilab:/fermilab/darkside
     
-    #
+    # let RUNABC=run/10
+    # let RUN100=run/100
+    FULLRUNNUM=`printf %06d $run`
+    FULLSUBNUM=`printf %03d $subrun`
+    RUNAB=${FULLRUNNUM:0:2}
+    RUNABCDE=${FULLRUNNUM:0:5}
+    phase=commissioning
+    
+    if [ ! -f /scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat ]; then
+	globus-url-copy -vb -g2 -cd -p 10 gsiftp://fndca1.fnal.gov:2811/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_001.dat	/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/
+    fi
+    if [ ! -f /scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat ]; then
+	globus-url-copy -vb -g2 -cd -p 10 gsiftp://fndca1.fnal.gov:2811/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat /scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/
+    fi
+    odfile_subrun1=/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat
+
+    art -c $odfcl $odfile_subrun1
 fi
 
 #################
