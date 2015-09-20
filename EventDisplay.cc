@@ -1445,14 +1445,14 @@ namespace display {
     int end_bin = h->GetXaxis()->FindBin(end_t);
     double integral=h->Integral(start_bin,end_bin);
     delete h;
-    return integral;
+    return fabs(integral);
   }
 
   //________________________________________________________________________________________
   double EventDisplay::AdjustIntegral(std::string detector, double integral) {
     integral=fabs(integral);
     if (integral<0.0001) integral = 0.0001; // prevent log(0)
-    if (detector=="tpc") {
+    if (detector=="tpc" && tpc_geo_enabled) {
       if (tpc_gif_frame->check_box_log->IsOn()) {
 	integral = log10(integral);
 	if (integral<0) integral = 0.;
@@ -1461,7 +1461,7 @@ namespace display {
       else
 	return integral;
     }
-    if (detector=="lsv") {
+    if (detector=="lsv" && lsv_geo_enabled) {
       if (lsv_gif_frame->check_box_log->IsOn()) {
 	integral = log10(integral);
 	if (integral<0) integral = 0.;
@@ -1470,7 +1470,7 @@ namespace display {
       else
 	return integral;
     }
-    if (detector=="wt") {
+    if (detector=="wt" && wt_geo_enabled) {
       if (wt_gif_frame->check_box_log->IsOn()) {
 	integral = log10(integral);
 	if (integral<0) integral = 0.;
@@ -1479,6 +1479,7 @@ namespace display {
       else
 	return integral;
     }
+    return integral;
   }
 
   //________________________________________________________________________________________
@@ -1631,13 +1632,23 @@ namespace display {
 
   //________________________________________________________________________________________
   void EventDisplay::PrintTPCPulses() {
+    double p0integral(9.e9);
     for(int i=0; i<tpc_pulse_vec.size(); i++) {
-      std::cout<<"Pulse: " <<i
-	       <<"\tStart: " <<tpc_pulse_vec.at(i)->start_us
-	       <<"\tEnd: "   <<tpc_pulse_vec.at(i)->end_us
-	       <<"\tPeak: "  <<tpc_pulse_vec.at(i)->peak_us
-	       <<"\tBase: "  <<tpc_pulse_vec.at(i)->base
-	       <<"\tHeight: "<<tpc_pulse_vec.at(i)->height
+      double integral = EventDisplay::GetGraphIntegral(EventDisplay::GetSumGraph("tpc"),tpc_pulse_vec.at(i)->start_us,tpc_pulse_vec.at(i)->end_us);
+      double integral90ns = EventDisplay::GetGraphIntegral(EventDisplay::GetSumGraph("tpc"),tpc_pulse_vec.at(i)->start_us,tpc_pulse_vec.at(i)->start_us+0.09);
+      double f90 = integral90ns/integral;
+      if (i==0) p0integral = integral;
+      double ratio = integral/p0integral;
+      std::cout<<std::setprecision(1)<<std::fixed;
+      std::cout<<"Pulse: " <<std::setw(2)<<i
+	       <<" Start: " <<std::setw(6)<<tpc_pulse_vec.at(i)->start_us
+	       <<" End: "   <<std::setw(6)<<tpc_pulse_vec.at(i)->end_us
+	       <<" Peak: "  <<std::setw(6)<<tpc_pulse_vec.at(i)->peak_us
+	       <<" Base: "  <<std::setw(2)<<tpc_pulse_vec.at(i)->base
+	       <<" Height: "<<std::setw(7)<<tpc_pulse_vec.at(i)->height
+	       <<" f90: "   <<std::setprecision(5)<<std::setw(8)<<f90<<std::setprecision(1)
+	       <<" Integral: "<<std::setw(8)<<integral
+	       <<" Integral/Pulse0Integral: "<<std::setw(5)<<ratio
 	       <<std::endl;
     }
   }          

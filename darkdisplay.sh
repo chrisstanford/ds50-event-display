@@ -3,14 +3,13 @@
 # Usage info                                                                                                                 
 show_help() {
 cat <<EOF
-Usage: ${0} [-h] [-t] [-o] [-r TPCRUN] [-f ODPATH] [-e EVENT] [-c CONSEC]
+Usage: ${0} [-h] [-t] [-o] [-r RUN] [-e EVENT] [-c CONSEC]
 
     -h          display this help and exit
     -t          enable tpc
     -o          enable od
-    -r TPCRUN   desired run id for tpc
-    -f ODPATH   path to first od subrun file
-    -e EVENT    desired event id for either detector [1 if unspecified]
+    -r RUN      desired run id
+    -e EVENT    desired event id [1 if unspecified]
     -c CONSEC   number of consecutive events desired [1 if unspecified]
 
 Examples:
@@ -18,13 +17,13 @@ If you want to look at a specific event in the TPC:
 ./darkdisplay.sh -t -r 5475 -e 42474
 
 If you want to look at a specific event in the OD:
-./darkdisplay.sh -o -r 8000 -e 314 -f /scratch/darkside/aldenf/ODRun008000_001.dat
+./darkdisplay.sh -o -r 8000 -e 314 
 
 If you want to look at a specific event in the TPC and OD:
-./darkdisplay.sh -to -r 8000 -e 401 -f /scratch/darkside/aldenf/ODRun008000_001.dat 
+./darkdisplay.sh -to -r 8000 -e 401
 
 If you want to look at 5 consecutive events in the OD starting at event 300
-./darkdisplay.sh -o -r 8000 -e 300 -c 5 -f /scratch/darkside/aldenf/ODRun008000_001.dat
+./darkdisplay.sh -o -r 8000 -e 300 -c 5
 
 If you want to save the display output root files but don't want to open up the display:
 ./darkdisplay.sh -t -r 5475 -e 42474 --nodisplay
@@ -35,7 +34,7 @@ If you want to show the V1724 waveforms for the TPC (will only work for runs tha
 If you want to enable 3D event reconstruction
 ./darkdisplay.sh -t -r 5475 -e 42474 --enable3D
 
-* See redmine wiki on how to open up root files you've already created
+* See redmine wiki on how to open up root files you've already created and for how to submit a batch of many events
 EOF
 }
 # Set defaults. These will change based on command line arguments
@@ -86,9 +85,6 @@ else
 fi
 odfcl=oddisplay.fcl
 
-# Remove leading zeros
-run=$((10#$run))
-event=$((10#$event))
 
 
 # Verify inputs 
@@ -106,6 +102,10 @@ if [ -z "$event" ]; then
 fi
 if [ -z "$consecutive_events" ]; then consecutive_events=1; fi
 
+
+# Remove leading zeros
+run=$((10#$run))
+event=$((10#$event))
 
 # set output directory
 if [ -z "$output_directory" ]; then
