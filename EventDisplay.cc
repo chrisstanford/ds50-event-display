@@ -813,15 +813,16 @@ namespace display {
       //
       int N_channels = mg_chan->GetListOfGraphs()->GetSize();
       if (MultiGraphContainsIntegral(mg_chan)) N_channels--;
-
-      TH2F *h2 =new TH2F("h2", "all channels next to each other", 1000, -10, 20, N_channels+1, 0, N_channels+1); //+1 to also show the sum channel simultaneously
+      TGraph* gr=(TGraph*)(mg_chan->GetListOfGraphs()->At(0));
+      int nbins=static_cast<int>((gr->GetX()[gr->GetN()-1]-gr->GetX()[1])*1000.0/20); //20 ns binning is fine enough, the V1720 has 4 ns (250 MHz)
+      TH2F *h2 =new TH2F("h2", "all channels next to each other", nbins, gr->GetX()[1], gr->GetX()[gr->GetN()-1], N_channels+1, 0, N_channels+1); //+1 to also show the sum channel simultaneously
       h2->Sumw2();
       for(int i=0;i<N_channels+1;++i){
 	TGraph* gr=(TGraph*)(mg_chan->GetListOfGraphs()->At(i));
 	if(i==N_channels) gr=(TGraph*)(mg_sum->GetListOfGraphs()->At(0));
 	if(!gr) return;
 	for(int j=0;j<gr->GetN();++j){
-	  if(gr->GetX()[j]>20) break; //ignore everthing after 20 us
+	  //if(gr->GetX()[j]>20) break; //ignore everthing after 20 us
 	  h2->Fill(gr->GetX()[j],i,-gr->GetY()[j]);
 	}
       }
