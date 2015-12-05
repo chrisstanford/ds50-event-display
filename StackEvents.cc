@@ -11,14 +11,18 @@ StackEvents::StackEvents(string inDirFileList, string outFileName){
   iF.open(inDirFileList);
   cout<<"opening inDirFileList: "<<inDirFileList<<endl;
 
+  fOutName=outFileName;
+
   string line="";
   while(iF>>line){
     
     if (line.find(".root")==string::npos){ 
       cout << "line does not have .root in it:" << line << endl;
       exit(-1);
-    } else {
-      cout << line << endl;
+    } else if(line.find("#")==0){ //allows to comment out events
+      cout << "skip line: " << line << endl;
+    }else {
+      //cout << line << endl;
       vInFileNames.push_back(line);
     }
     
@@ -29,30 +33,82 @@ StackEvents::StackEvents(string inDirFileList, string outFileName){
     cout << "no entries found in: " << inDirFileList << endl;
     exit(-1);
   }
-  //open the first file and make it the seed for the output then ignore it inside LoadDirectoryIntoTChain() to avoid double counting
-
-  //http://stackoverflow.com/questions/3680730/c-fileio-copy-vs-systemcp-file1-x-file2-x  
-  ifstream fSrc (vInFileNames.at(0), fstream::binary);
-  ofstream fDest (outFileName, fstream::binary);
-  fDest << fSrc.rdbuf ();
-  fSrc.close();
-  fDest.close();
 
   InitVars();
   if(vInFileNames.size()>1) LoadDirectoryIntoTChain(vInFileNames);
 
-  fOut = TFile::Open(outFileName.c_str(), "UPDATE");
-  //tpc_settings_tree_out = new TChain("display/tpc_settings_tree");
-  tpc_display_tree_out = (TChain *)fOut->Get("display/tpc_display_tree");
-
-  SetBranchAddresses_Out();
-
 
 }
 
-StackEvents::~StackEvents(){
-  fOut->cd();
+void StackEvents::Finalize(){
+
+  //cout << "is writable: " << fOut->IsWritable() << endl;
+  //build the TGraphs and TMultiGraph out of the vWaveforms vector of arrays
+  TMultiGraph *mgCh=new TMultiGraph();
+  TMultiGraph *mgSum=new TMultiGraph();
+
+  TGraph *grX=(TGraph*)tpc_chan_in->GetListOfGraphs()->At(0);
+  for(int i=0;i<n_channels;++i){
+    TGraph *grIn=new TGraph(n_samples, grX->GetX(), &vStackedWaveforms.at(i)[0]);
+    mgCh->Add(grIn);
+  }
+  TGraph *grSum=new TGraph(n_samples, grX->GetX(), &StackedSum[0]);
+  mgSum->Add(grSum);
+
+
+  cout << "outfile: " << fOutName << endl;
+  TFile *fOut = TFile::Open(fOutName.c_str(), "RECREATE"); //open it here,
+  TDirectory *fDisplayDir=fOut->mkdir("display");
+  //TDirectory *tdDisplay=new TDirectory("display", "display", "", fOut);
+  fDisplayDir->cd();
+  //tpc_settings_tree_out = new TChain("display/tpc_settings_tree");
+  TTree *tpc_display_tree_out = tpc_display_tree_in->CloneTree(0);
+
+  tpc_display_tree_out->SetBranchAddress("tpc_run_id",     &tpc_run_id_out, &b_tpc_run_id_out);
+  tpc_display_tree_out->SetBranchAddress("tpc_event_id",   &tpc_event_id_out, &b_tpc_event_id_out);
+  tpc_display_tree_out->SetBranchAddress("tpc_sum",        &tpc_sum_out, &b_tpc_sum_out);
+  tpc_display_tree_out->SetBranchAddress("tpc_chan",       &tpc_chan_out, &b_tpc_chan_out);
+  tpc_display_tree_out->SetBranchAddress("tpc_pulse_tree", &tpc_pulse_tree_out, &b_tpc_pulse_tree_out);
+  tpc_display_tree_out->SetBranchAddress("tpc_spe_tree",   &tpc_spe_tree_out, &b_tpc_spe_tree_out);
+  
+  tpc_run_id_out=-1;
+  tpc_event_id_out=-1;
+  tpc_chan_out=mgCh;
+  tpc_sum_out=mgSum;
+  tpc_pulse_tree_out=0;
+  tpc_spe_tree_out=0;
+
+  tpc_display_tree_out->Fill();
   tpc_display_tree_out->Write();
+
+  tpc_display_tree_in->SetBranchStatus("tpc_chan",0);
+  TTree *tpc_display_tree_out_perEvent = tpc_display_tree_in->CloneTree(); //this is a clone to preserve the run_id and event_id (and other information, except for the memory intensive waveform channel multigraph, the sum channel is kept.
+  tpc_display_tree_out_perEvent->SetNameTitle("tpc_display_tree_perEvent", "per event display tree from the input files");
+  tpc_display_tree_out_perEvent->Write();
+
+  TTree *tpc_settings_tree_out=tpc_settings_tree_in->CloneTree();
+  tpc_settings_tree_out->Write();
+
+  TTree *tpc_pulse_tree_out=tpc_pulse_tree_in->CloneTree();
+  tpc_pulse_tree_out->Write();
+  /*
+  TH2F *h2 =new TH2F("h2", "all channels next to each other", 1000, -10, 20, 38+1, 0, 38+1);
+  h2->Sumw2();
+  for(int i=0;i<38+1;++i){
+    TGraph* gr=(TGraph*)(mgCh->GetListOfGraphs()->At(i));
+    if(i==38) gr=(TGraph*)(mgSum->GetListOfGraphs()->At(0));
+    if(!gr) return;
+    int counter=0;
+    for(int j=0;j<gr->GetN();++j){
+      //if(counter<40) std::cout << Form("gr2D: %d, %d, %f, %f", counter, i, gr->GetX()[j], gr->GetY()[j]) << std::endl;
+      if(gr->GetX()[j]>20) break;
+      //gr2D->SetPoint(counter, i, gr->GetX()[j], gr->GetY()[j]);
+      h2->Fill(gr->GetX()[j],i,-gr->GetY()[j]);
+      counter++;
+    }
+  }
+  */
+  //h2->Write();
   fOut->Close();
 
 }
@@ -80,6 +136,9 @@ StackEvents::~StackEvents(){
     tpc_enabled=true;
     tpc_geo_enabled=false;
 
+    //queried from the waveforms itself, see below
+    n_channels=0; 
+    n_samples=0;
   }
 
 
@@ -89,8 +148,8 @@ StackEvents::~StackEvents(){
     TChain* settings_chain = new TChain("display/tpc_settings_tree");
     TChain* display_chain = new TChain("display/tpc_display_tree");
     
-    //ignore the first, since it is already in the output file
-    for(int i=1;i<vInFileNames.size();++i){
+
+    for(int i=0;i<vInFileNames.size();++i){
       cout<<"Adding "<<vInFileNames.at(i)<<" to chain.\n";
       settings_chain->Add(vInFileNames.at(i).c_str());
       display_chain->Add(vInFileNames.at(i).c_str());
@@ -102,10 +161,10 @@ StackEvents::~StackEvents(){
     }
     tpc_settings_tree_in = settings_chain;
     tpc_display_tree_in = display_chain;
-    //FixMe (the first tree being in the output, and is ignored here)
+
     cout<<"Found a total of "<<tpc_display_tree_in->GetEntries()<<" TPC events."<<endl; 
-    //if (!tpc_settings_tree_in || !tpc_display_tree_in) {
-    if (!tpc_display_tree_in) {
+    if (!tpc_settings_tree_in || !tpc_display_tree_in) {
+    //if (!tpc_display_tree_in) {
       cout<<"No input trees were found"<<endl;
       return;
     }
@@ -116,6 +175,7 @@ StackEvents::~StackEvents(){
 
 //________________________________________________________________________________________
 void StackEvents::SetBranchAddresses_In() {
+
   // Load TPC Settings
   if (tpc_settings_tree_in) {
     tpc_settings_tree_in->SetBranchAddress("tpc_enabled",    &tpc_enabled);
@@ -133,12 +193,14 @@ void StackEvents::SetBranchAddresses_In() {
     tpc_display_tree_in->SetBranchAddress("tpc_chan",       &tpc_chan_in, &b_tpc_chan_in);
     tpc_display_tree_in->SetBranchAddress("tpc_pulse_tree", &tpc_pulse_tree_in, &b_tpc_pulse_tree_in);
     tpc_display_tree_in->SetBranchAddress("tpc_spe_tree",   &tpc_spe_tree_in, &b_tpc_spe_tree_in);
-    tpc_display_tree_in->GetEntry(0);
+    tpc_display_tree_in->GetEntry(0); //requires the tree variables to be initialized, otherwise there are seg faults!
+    //tpc_display_tree_in->SetMakeClass(1);
   }
   //cout << "tpc_run_id_in: " << tpc_run_id_in << endl;
   //cout << "tpc_event_id_in: " << tpc_event_id_in << endl;
 }
 
+/*
 //________________________________________________________________________________________
 void StackEvents::SetBranchAddresses_Out() {
   // Load TPC data
@@ -155,64 +217,77 @@ void StackEvents::SetBranchAddresses_Out() {
   }
 
 }
-
+*/
 
   //________________________________________________________________________________________
 void StackEvents::StackWaveforms(){
-  TGraph *grIn, *grOut;
+  TGraph *grIn;
   
-  tpc_display_tree_out->GetEntry(0);
-  int n_channels=tpc_chan_out->GetListOfGraphs()->GetSize();
+  tpc_display_tree_in->GetEntry(0);
+  n_channels=tpc_chan_in->GetListOfGraphs()->GetSize();
+  if(n_channels>0){ 
+    grIn = (TGraph*)tpc_chan_in->GetListOfGraphs()->At(0);
+    n_samples=grIn->GetN();
+  } else {
+    cout << "Error: n_channels must be bigger than 0!" << endl;
+    exit(-1);
+  }
+
+
+  //prepare the vector of stackedWaveforms
+  for(int i=0; i<n_channels; ++i){ 
+    vector<double> oneCh(n_samples, 0);
+    //cout << "oneCh: " << &oneCh << endl;
+    vStackedWaveforms.push_back(oneCh);
+  }
+  vector<double> oneCh(n_samples, 0);
+  StackedSum=(oneCh);
   
+
+
   //for each event/ input file:
   for(int ev=0;ev<tpc_display_tree_in->GetEntries();ev++){
     tpc_display_tree_in->GetEntry(ev);
     cout << "Processing event: " << ev << endl;
     //input added to output
     for(int i=0;i<n_channels;++i){
-      cout << "-- Channel: " << i << endl;
+      //cout << "-- Channel: " << i << endl;
       grIn=(TGraph*)(tpc_chan_in->GetListOfGraphs()->At(i));
-      grOut=(TGraph*)(tpc_chan_out->GetListOfGraphs()->At(i));
-      if(!grIn || !grOut) {
-	cout << "Chan: something went wrong with grIn or grOut: " << grIn << ", " << grOut << endl;
+      if(!grIn) {
+	cout << "Chan: something went wrong with grIn: " << grIn << endl;
 	exit(-1);
       }
       
-      double *x=grOut->GetX();
       double *yIn=grIn->GetY();
-      double *yOut=grOut->GetY();
-      for(int j=0;j<grOut->GetN();++j){
-	cout << yIn[j]+yOut[j] << ", "; 
-	//grOut->SetPoint(j,x[j], yIn[j]+yOut[j]);
-	grOut->SetPoint(j,x[j], 1);
+      for(int j=0;j<n_samples;++j){
+	vStackedWaveforms.at(i)[j]+=yIn[j];
       } 
     }
-    cout << endl;
+    //cout << endl;
 
-    //and the sum channel:
-    for(int i=0;i<tpc_sum_out->GetListOfGraphs()->GetSize();++i){ //GetSize() should be 1
+    //the sum channel:
+    if(tpc_sum_in->GetListOfGraphs()->GetSize()!=1){
+      cout << "Error: sum channel should have only one channel: " << tpc_sum_in->GetListOfGraphs()->GetSize() << endl;
+      exit(-1);
+    }
+    for(int i=0;i<tpc_sum_in->GetListOfGraphs()->GetSize();++i){
       grIn=(TGraph*)(tpc_sum_in->GetListOfGraphs()->At(i));
-      grOut=(TGraph*)(tpc_sum_out->GetListOfGraphs()->At(i));
-      if(!grIn || !grOut) {
-	cout << "Sum: something went wrong with grIn or grOut: " << grIn << ", " << grOut << endl;
+      if(!grIn) {
+	cout << "Sum: something went wrong with grIn: " << grIn << endl;
 	exit(-1);
       }
-      
-      double *x=grOut->GetX();
+
       double *yIn=grIn->GetY();
-      double *yOut=grOut->GetY();
-      for(int j=0;j<grOut->GetN();++j){
-	//grOut->SetPoint(j,x[j], yIn[j]+yOut[j]);
-	grOut->SetPoint(j,x[j], 1);
+      for(int j=0;j<n_samples;++j){
+        StackedSum[j]+=yIn[j];
       } 
     }
-    fOut->cd();
-    tpc_display_tree_out->Write();
   }
+  Finalize();
 }
   //________________________________________________________________________________________
-  int StackEvents::LoadEventTPC(const char* dettab) {
-    /*
+/*  int StackEvents::LoadEventTPC(const char* dettab) {
+    
     if (!tpc_enabled) return 0;
     // Load TPC event
     const string detectortab = dettab;
@@ -287,12 +362,12 @@ void StackEvents::StackWaveforms(){
     if (canvas) StackEvents::DrawDefaultWaveform("tpc");
     cout<<"Event loaded."<<endl;
     return 1;
-    */
+    
   }
-
+*/
   //________________________________________________________________________________________
-  void StackEvents::DrawWaveform(const char* charinput) {
-    /*
+/*  void StackEvents::DrawWaveform(const char* charinput) {
+    
     const string input = charinput;
     TMultiGraph* mg_sum;
     TMultiGraph* mg_chan;
@@ -388,17 +463,17 @@ void StackEvents::StackWaveforms(){
     // Update
     c->Update();  
     gEve->GetBrowser()->GetTabRight()->SetTab(1);
-    */
+    
   }
-
+*/
   //________________________________________________________________________________________
-  double StackEvents::GetMaxOfMultiGraph(TMultiGraph* mg, double start_t=-9.e9, double end_t=9.e9) {    
+/*  double StackEvents::GetMaxOfMultiGraph(TMultiGraph* mg, double start_t=-9.e9, double end_t=9.e9) {    
     TList* list_graphs = mg->GetListOfGraphs();
     int N_channels = list_graphs->GetSize();
      double max = 0;
     double maxtime = 0;
     double maxchan = 0;
-    /*
+    
     for (int i=0;i<N_channels;i++) {
       TGraph* gr = (TGraph*)list_graphs->At(i);
       if (gr->GetName()=="Integral") continue;
@@ -423,12 +498,12 @@ void StackEvents::StackWaveforms(){
 	max = tempmax;
       }
     }
-    */
+    
     //    cout<<"Max of muligraph in region "<<max<<"\n";
     return max;
     
   }
-
+*/
 /*    
   //________________________________________________________________________________________
   void StackEvents::PrintTPCPulses() {

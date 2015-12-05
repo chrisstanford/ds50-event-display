@@ -16,25 +16,17 @@
 class StackEvents {
 public:
   explicit StackEvents(std::string inDirFileList, std::string outFileName);
-  virtual ~StackEvents();
-  // Functions called by buttons
-  int LoadEventTPC(const char* dettab);
-  void DrawWaveform(const char* input);      
-  //void PrintTPCPulses();
+
   void StackWaveforms();
 
 private:
 
-  //TFile*              fIn;
-    TFile*              fOut;
+  std::string         fOutName;      
 
-    //                  main tree
-    TChain*             tpc_display_tree_in;
+  //                  main tree
+  TChain*             tpc_display_tree_in;
     TChain*             tpc_settings_tree_in;
 
-    TChain*             tpc_display_tree_out;
-    TChain*             tpc_settings_tree_out;
-     
     int                 tpc_run_id_in;
     int                 tpc_event_id_in;
     TMultiGraph*        tpc_sum_in;
@@ -63,22 +55,21 @@ private:
     TBranch*            b_tpc_pulse_tree_out;
     TBranch*            b_tpc_spe_tree_out;
 
-  //std::vector<display::TPCPulse*> tpc_pulse_vec;
-  //std::vector<display::TPCSPE*> tpc_spe_vec;
-  
-
+  void Finalize();
   void LoadDirectoryIntoTChain(std::vector<std::string> vInFileNames); 
   void SetBranchAddresses_In();
-  void SetBranchAddresses_Out();
-  //    int  LoadEvent(int); 
-  void DrawTPCPulses(int ch);     
-  void DrawTPCSPEs(int ch);
+
   void InitVars();
 
-  double GetMaxOfMultiGraph(TMultiGraph* mg, double start_t, double end_t);
+  //double GetMaxOfMultiGraph(TMultiGraph* mg, double start_t, double end_t); //This might be used in the future...
   
   bool                tpc_enabled;
   bool                tpc_geo_enabled;
+
+  std::vector<std::vector<double>> vStackedWaveforms; //one entry in this vector is one channel, which is a vector of double. In it the stacked waveforms of all events are collected before written into tGraphs and tMultigraphs.
+  std::vector<double> StackedSum;
+  int n_channels;
+  int n_samples;
 
   };
 
