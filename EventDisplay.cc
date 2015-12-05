@@ -1,5 +1,6 @@
 // display
 #include "./EventDisplay.hh"
+#include <TH2.h>
 
 namespace display {
   EventDisplay::EventDisplay(std::string filepath1, std::string filepath2, std::string option) :
@@ -502,6 +503,7 @@ namespace display {
     listbox_waveforms = new TGListBox(this);
     listbox_waveforms->AddEntry("Sum Channels",display::channeltype::kSumChannel);
     listbox_waveforms->AddEntry("All Channels",display::channeltype::kAllChannel);
+    listbox_waveforms->AddEntry("All Channels (colz)",display::channeltype::kAllChannel_colz);
     TList* list_chan = mg_chan->GetListOfGraphs();
     std::cout<<"Found "<<list_chan->GetSize()<<" channel graphs.\n";
     for(int i=0;i<list_chan->GetSize();i++) {
@@ -799,6 +801,33 @@ namespace display {
 	mg_chan->Add(wf_integral);
       }
       mg_chan->Draw("al");
+      
+    } else if (selected == display::channeltype::kAllChannel_colz) {
+      if (input=="tpc" && !EventDisplay::MultiGraphContainsIntegral(mg_chan)) { // add integral
+	TGraph* gr = (TGraph*)(mg_sum->GetListOfGraphs()->First());
+	if (!gr) return;
+	EventDisplay::SetIntegralGraph(gr,mg_chan);
+	mg_chan->Add(wf_integral);
+      }
+      //mg_chan->Draw("al");
+      //
+      int N_channels = mg_chan->GetListOfGraphs()->GetSize();
+      if (MultiGraphContainsIntegral(mg_chan)) N_channels--;
+
+      TH2F *h2 =new TH2F("h2", "all channels next to each other", 1000, -10, 20, N_channels+1, 0, N_channels+1); //+1 to also show the sum channel simultaneously
+      h2->Sumw2();
+      for(int i=0;i<N_channels+1;++i){
+	TGraph* gr=(TGraph*)(mg_chan->GetListOfGraphs()->At(i));
+	if(i==N_channels) gr=(TGraph*)(mg_sum->GetListOfGraphs()->At(0));
+	if(!gr) return;
+	for(int j=0;j<gr->GetN();++j){
+	  if(gr->GetX()[j]>20) break; //ignore everthing after 20 us
+	  h2->Fill(gr->GetX()[j],i,-gr->GetY()[j]);
+	}
+      }
+      
+      h2->Draw("hcolz");
+
     } else {
       TGraph* gr = (TGraph*)(mg_chan->GetListOfGraphs()->At(selected));
       gr->Draw("al");
@@ -813,6 +842,7 @@ namespace display {
     if ((input=="tpc")&&
 	(selected!=display::channeltype::kSumChannel)&&
 	(selected!=display::channeltype::kAllChannel)&&
+	(selected!=display::channeltype::kAllChannel_colz)&&
 	(tpc_spe_frame->check_box->IsOn()))
       DrawTPCSPEs(GetChannelIDFromMultigraphID(selected,tpc_chan));
     if ((input=="lsv_ampl"||input=="lsv_disc")&&lsv_cluster_frame->check_box->IsOn()) 
