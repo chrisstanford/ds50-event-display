@@ -11,10 +11,6 @@ namespace display {
     lsv_geo_enabled(false),
     wt_geo_enabled(false)
   {
-    // if (tpc_settings_tree) std::cout<<tpc_settings_tree<<" tpctreeexists1!8\n";
-    // if (tpc_display_tree) std::cout<<"tpctreeexists2!8\n";
-    // if (od_settings_tree) std::cout<<od_settings_tree<<" odtreeexists1!8\n";
-    // if (od_display_tree) std::cout<<od_display_tree<<" odtreeexists2!8\n";
     if (option.find("V") != std::string::npos) enabled_3d = true;
     else enabled_3d = false;
     //    std::cout<<"Please ignore libGL errors."<<std::endl;
@@ -362,9 +358,9 @@ namespace display {
   void EventDisplay::Create() {
     // Load first event in display tree
     if (tpc_enabled)
-      if (!LoadEventTPC("")) return;
+      if (!LoadEventTPC("")) tpc_enabled = false;
     if (lsv_enabled||wt_enabled) 
-      if (!LoadEventOD("")) return;
+      if (!LoadEventOD("")) {lsv_enabled = false; wt_enabled = false;}
     // Create Tabs
     CreateWaveformTab();
     CreateCanvas();
@@ -1830,7 +1826,7 @@ int main(int argc, char* argv[]) {
     return 0;
   }
   sed->Create();
-  std::cout<<"Created display."<<std::endl;
+  std::cout<<"Created display. Use Ctrl+C to exit."<<std::endl;
   app.Run();
   return 0;
 }

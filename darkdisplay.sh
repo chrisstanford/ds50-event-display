@@ -146,7 +146,6 @@ export FHICL_FILE_PATH=$FHICL_FILE_PATH:/ds50/app/user/${USER}/work/darkart/fcl
 
 # Create temp fcl file with desired event number and number of consecutive events desired.
 # The od and tpc display fcl files look for this fcl file so they know which events to process.
-# generate temp fhicl file to be fed into art
 printf \
 "single_event : ${event}\n\
 consecutive_events : ${consecutive_events}\n\
@@ -185,49 +184,37 @@ if [ "$tpc_enabled" = "true" ]; then
 	fi
     fi
 
-    # Access tpc file
+    echo "Looking for subrun $subrun on Fermigrid..."
     kx509
     voms-proxy-init --noregen --voms fermilab:/fermilab/darkside
-    
+
     FULLRUNNUM=$(printf "%06d\n" $run)
-    FULLSUBNUM=$(printf "%03d\n" $subrun)   
+    FULLSUBNUM=$(printf "%03d\n" $subrun)
+
     echo "Retrieving file list..."
     let mathfriendly=10#$FULLRUNNUM
-    type=commissioning
-    echo "Searching in $type "
-    if [ ${mathfriendly} -lt 7560 ]; then
-	tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:4}xx/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
+    phases=( "commissioning" "calibration" "wimp_search" )
+    let mathfriendly=10#$FULLRUNNUM
+    for phase in "${phases[@]}"
+    do
+	echo "Searching in $phase"
+	if [ ${mathfriendly} -lt 7560 ]; then
+    	    tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/darkside/raw/${phase}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:4}xx/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
+	else
+    	    tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/darkside/raw/${phase}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:5}x/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
+	fi
+	if [ -n "$tpcfile" ]; then
+	    echo "File found in $phase"
+	    break;
+	fi	
+    done
+    # Run art
+    if [ -n "$tpcfile" ]; then # File found on fermigrid
+	art -c $tpcfcl xroot://fndca4a.fnal.gov:1094/pnfs/fnal.gov/usr/$tpcfile
     else
-	tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:5}x/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
-
-	if [ ! -n "$tpcfile" ]; then
-            type="calibration"
-	    echo "Searching in $type "
-            tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:5}x/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
-	fi
-	if [ ! -n "$tpcfile" ]; then
-	    type="wimp_search"
-	    echo "Searching in $type "
-	    tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:5}x/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
-	fi
+	echo "ERROR: The TPC file for the requested subrun was not found on Fermigrid" 
     fi
 
-
-
-    # if [ ${mathfriendly} -lt 7560 ]; then
-    # 	tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:4}xx/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
-    # else
-    # 	tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:5}x/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
-    # 	if [ -n "$tpcfile" ]; then
-    #         type="commissioning"
-    # 	else
-    # 	    type="calibration"
-    #         tpcfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/raw/${type}/Run${FULLRUNNUM:0:2}xxxx/Run${FULLRUNNUM:0:5}x/ds50_r${FULLRUNNUM}_sr${FULLSUBNUM}*.root | awk '{print $8}' `
-    # 	fi
-    # fi
-
-    # Run art on tpc file
-    art -c $tpcfcl xroot://fndca4a.fnal.gov:1094/pnfs/fnal.gov/usr/darkside/$tpcfile
 fi
 
 ##########
@@ -259,28 +246,62 @@ if [ "$od_enabled" = "true" ]; then
 	    fi
 	fi
     fi
-    
-    # Copy OD run to scratch    
+
+    # Find first subrun and requested subrun on Fermigrid    
     kx509
-    voms-proxy-init --noregen --voms fermilab:/fermilab/darkside
+    voms-proxy-init --noregen --voms fermilab:/fermilab/darkside/Role=Analysis
     
-    # let RUNABC=run/10
-    # let RUN100=run/100
     FULLRUNNUM=`printf %06d $run`
     FULLSUBNUM=`printf %03d $subrun`
     RUNAB=${FULLRUNNUM:0:2}
     RUNABCDE=${FULLRUNNUM:0:5}
-    phase=commissioning
-    
-    if [ ! -f /scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat ]; then
-	globus-url-copy -vb -g2 -cd -p 10 gsiftp://fndca1.fnal.gov:2811/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_001.dat	/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/
-    fi
-    if [ ! -f /scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat ]; then
-	globus-url-copy -vb -g2 -cd -p 10 gsiftp://fndca1.fnal.gov:2811/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat /scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/
-    fi
-    odfile_subrun1=/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat
+    phases=( "commissioning" "calibration" "wimp_search" )
+    let mathfriendly=10#$FULLRUNNUM
+    for phase in "${phases[@]}"
+    do
+	echo "Searching in $phase"
+	if [ ${mathfriendly} -lt 7560 ]; then
+    	    odfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/darkside/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_001.dat | awk '{print $8}' `
+	    odsubfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/darkside/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat | awk '{print $8}' `
+	else
+	    odfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/darkside/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_001.dat | awk '{print $8}' `
+	    odsubfile=`uberftp -ls gsiftp://fndca4a.fnal.gov:2811/darkside/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat | awk '{print $8}' `
+	fi
+	if [ -n "$odfile" ]; then
+	    echo "Files found in $phase"
+	    break;
+	fi
+    done
 
-    art -c $odfcl $odfile_subrun1
+    if [ -n "$odfile" ]; then # OD file was found on Fermigrid
+        # Check if raw data is already on ds50
+	# Copy the file over to ds50 if not
+	if [ -s "/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat" ]; then
+	    globus-url-copy -vb -g2 -cd -p 10 gsiftp://fndca1.fnal.gov:2811/darkside/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_001.dat /scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/
+	fi
+	if [ ! -s "/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat" ]; then
+	    echo "OD subrun failed to copy over from Fermigrid"
+	fi
+    else	
+	echo "ERROR: The OD file for the first subrun was not found on Fermigrid" 
+    fi
+    if [ -n "$odsubfile" ]; then # OD file was found on Fermigrid
+        # Check if raw data is already on ds50
+	# Copy the file over to ds50 if not
+	if [ ! -s "/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat" ]; then
+	    globus-url-copy -vb -g2 -cd -p 10 gsiftp://fndca1.fnal.gov:2811/darkside/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat /scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/
+	fi
+	if [ ! -s "/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat" ]; then
+	    echo "OD subrun failed to copy over from Fermigrid"
+	fi
+    else	
+	echo "ERROR: The OD file for the requested subrun was not found on Fermigrid" 
+    fi
+    # Run art
+    odfile_subrun1=/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat
+    if [ -n "$odfile_subrun1" ]; then
+	art -c $odfcl $odfile_subrun1
+    fi
 fi
 
 #################
@@ -289,9 +310,22 @@ fi
 
 #cd $output_directory
 
-
+# Check if run in "no display" mode (aka batch mode)
 if [ "$nodisplay" = true ]; then
     kill -INT $$ # Stop the script
+fi
+
+minimumsize=1000000
+tpcfilesize=$(wc -c <"${tpc_display_output}")
+odfilesize=$(wc -c <"${od_display_output}")
+
+if [[ "$tpc_enabled" = "true" && $tpcfilesize -lt $minimumsize ]]; then
+    echo "ERROR: TPC file too small to contain any events. Disabling TPC." 
+    tpc_enabled=false
+fi
+if [[ "$od_enabled" = "true" && $odfilesize -lt $minimumsize ]]; then
+    echo "ERROR: OD file too small to contain any events. Disabling OD." 
+    od_enabled=false
 fi
 
 if [[ "$tpc_enabled" = "true" && "$od_enabled" = "true" ]]; then
@@ -304,8 +338,4 @@ else
     printf "\nERROR: No detectors were enabled! See usage: ./darkdisplay -h\n"
     kill -INT $$ # Stop the script
 fi
-
-
-# Remove temp fcl file
-#rm event_selection.fcl
 
