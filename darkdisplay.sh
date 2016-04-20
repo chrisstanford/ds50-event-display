@@ -315,9 +315,13 @@ if [ "$nodisplay" = true ]; then
     kill -INT $$ # Stop the script
 fi
 
-minimumsize=1000000
-tpcfilesize=$(wc -c <"${tpc_display_output}")
-odfilesize=$(wc -c <"${od_display_output}")
+minimumsize=100000
+if [[ "$tpc_enabled" = "true" ]]; then
+    tpcfilesize=$(wc -c <"${tpc_display_output}")
+fi
+if [[ "$od_enabled" = "true" ]]; then
+    odfilesize=$(wc -c <"${od_display_output}")
+fi
 
 if [[ "$tpc_enabled" = "true" && $tpcfilesize -lt $minimumsize ]]; then
     echo "ERROR: TPC file too small to contain any events. Disabling TPC." 
