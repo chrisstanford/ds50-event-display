@@ -1343,10 +1343,19 @@ namespace display {
     if (TPCorOD(detector)!=EventDisplay::GetDetectorInActivePad()) {
       std::cout<<"Requested detector is not drawn in current canvas."<<std::endl;
       return;
-    }    
+    }
+    GIFFrame* gif_frame;
+    if (detector=="tpc") gif_frame = tpc_gif_frame; 
+    if (detector=="lsv") gif_frame = lsv_gif_frame; 
+    if (detector=="wt")  gif_frame = wt_gif_frame; 
+    Color_t background;
+    if (gif_frame->check_box_background->IsOn())
+      background = kWhite;
+    else
+      background = kBlack;
     double start_t = EventDisplay::GetAxisValue("min");
     double end_t   = EventDisplay::GetAxisValue("max");
-    EventDisplay::ColorByStartEnd(detector, start_t, end_t);
+    EventDisplay::ColorByStartEnd(detector, start_t, end_t, -1, false, background);
   }
 
   //________________________________________________________________________________________
@@ -1658,6 +1667,11 @@ namespace display {
 	       <<" Integral/Pulse0Integral: "<<std::setw(5)<<ratio
 	       <<std::endl;
     }
+    // Print Current window integral
+    double start_t = EventDisplay::GetAxisValue("min");
+    double end_t   = EventDisplay::GetAxisValue("max");
+    double window_integral = EventDisplay::GetGraphIntegral(EventDisplay::GetSumGraph("tpc"),start_t,end_t);
+    std::cout<<"Integral of current window: "<<window_integral<<std::endl;
   }          
                     
   //________________________________________________________________________________________
