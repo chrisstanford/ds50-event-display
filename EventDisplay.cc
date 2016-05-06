@@ -42,7 +42,7 @@ namespace display {
   //________________________________________________________________________________________
   void EventDisplay::LoadFile(std::string tpc_filepath, std::string od_filepath) {
     // Get trees from files
-    TTree* t;
+    // TTree* t;			
     // Get TPC tree
     if (tpc_filepath!="") {
       tpc_settings_tree = new TChain("display/tpc_settings_tree");
@@ -207,8 +207,8 @@ namespace display {
       return 0;
     }
     // Clear structures from previous event
-    for (int i=0;i<tpc_pulse_vec.size();++i) delete tpc_pulse_vec.at(i);
-    for (int i=0;i<tpc_spe_vec.size();++i) delete tpc_spe_vec.at(i);
+    for (size_t i=0;i<tpc_pulse_vec.size();++i) delete tpc_pulse_vec.at(i);
+    for (size_t i=0;i<tpc_spe_vec.size();++i) delete tpc_spe_vec.at(i);
     tpc_pulse_vec.clear();      
     tpc_spe_vec.clear();      
     // Get event from tree
@@ -220,7 +220,7 @@ namespace display {
     {
       const int N_pulses = tpc_pulse_tree->GetEntries();
       std::cout<<"Found "<<N_pulses<<" TPC pulses.\n";
-      int channel;
+      //      int channel;
       double start_us;
       double end_us;
       double peak_us;
@@ -289,8 +289,8 @@ namespace display {
       return 0;
     }
     // Clear structures from previous event
-    for (int i=0;i<lsv_cluster_vec.size();++i) delete lsv_cluster_vec.at(i);
-    for (int i=0;i<lsv_roi_vec.size();++i) delete lsv_roi_vec.at(i);
+    for (size_t i=0;i<lsv_cluster_vec.size();++i) delete lsv_cluster_vec.at(i);
+    for (size_t i=0;i<lsv_roi_vec.size();++i) delete lsv_roi_vec.at(i);
     lsv_cluster_vec.clear();      
     lsv_roi_vec.clear();      
     // Get event from tree
@@ -547,7 +547,7 @@ namespace display {
       parent->tpc_display_tree->SetBranchStatus("*",0);
       parent->tpc_display_tree->SetBranchStatus("tpc_run_id",1);
       parent->tpc_display_tree->SetBranchStatus("tpc_event_id",1);
-      for (size_t i = 0; i<parent->tpc_display_tree->GetEntries(); i++) { 
+      for (int i = 0; i<parent->tpc_display_tree->GetEntries(); i++) { 
 	// Get event from tree
 	parent->tpc_display_tree->GetEntry(i);
 	// Fill title
@@ -572,7 +572,7 @@ namespace display {
       parent->od_display_tree->SetBranchStatus("*",0);
       parent->od_display_tree->SetBranchStatus("od_run_id",1);
       parent->od_display_tree->SetBranchStatus("od_event_id",1);
-      for (size_t i = 0; i<parent->od_display_tree->GetEntries(); i++) { 
+      for (int i = 0; i<parent->od_display_tree->GetEntries(); i++) { 
 	// Get event from tree 
 	parent->od_display_tree->GetEntry(i);
 	// Fill title
@@ -978,7 +978,7 @@ namespace display {
       TGraph* gr = (TGraph*)list_graphs->At(i);
       std::string gr_name = gr->GetName();
       if (gr_name=="Integral") continue;
-      int last_index = gr_name.find_last_not_of("0123456789");
+      size_t last_index = gr_name.find_last_not_of("0123456789");
       if (last_index==std::string::npos) continue;
       std::string str_ch = gr_name.substr(last_index + 1);  
       std::string::size_type sz;
@@ -993,6 +993,7 @@ namespace display {
   std::string EventDisplay::TPCorOD(std::string detector) {
     if (detector=="tpc") return "tpc";
     if (detector=="lsv"||detector=="wt") return "od";
+    return "";
   }
   
   //________________________________________________________________________________________
@@ -1166,12 +1167,14 @@ namespace display {
     int N_channels = list_graphs->GetSize();
     if (MultiGraphContainsIntegral(mg)) N_channels--;
     double max = 0;
-    double maxtime = 0;
-    double maxchan = 0;
+    //    double maxtime = 0;
+    //    double maxchan = 0;
     for (int i=0;i<N_channels;i++) {
       TGraph* gr = (TGraph*)list_graphs->At(i);
-      if (gr->GetName()=="Integral") continue;
       if (!gr) continue;
+      // Ignore integral graph
+      if (IsIntegralGraph(gr)) continue;
+      //
       const int nbins = gr->GetN();
       const double *x = gr->GetX();//new double[nbins];
       const double *y = gr->GetY();//new double[nbins];
@@ -1340,10 +1343,19 @@ namespace display {
     if (TPCorOD(detector)!=EventDisplay::GetDetectorInActivePad()) {
       std::cout<<"Requested detector is not drawn in current canvas."<<std::endl;
       return;
-    }    
+    }
+    GIFFrame* gif_frame;
+    if (detector=="tpc") gif_frame = tpc_gif_frame; 
+    if (detector=="lsv") gif_frame = lsv_gif_frame; 
+    if (detector=="wt")  gif_frame = wt_gif_frame; 
+    Color_t background;
+    if (gif_frame->check_box_background->IsOn())
+      background = kWhite;
+    else
+      background = kBlack;
     double start_t = EventDisplay::GetAxisValue("min");
     double end_t   = EventDisplay::GetAxisValue("max");
-    EventDisplay::ColorByStartEnd(detector, start_t, end_t);
+    EventDisplay::ColorByStartEnd(detector, start_t, end_t, -1, false, background);
   }
 
   //________________________________________________________________________________________
@@ -1367,7 +1379,8 @@ namespace display {
     // loop over channels to find max integral
     for (int i=0;i<N_channels;i++) {
       TGraph* gr = (TGraph*)list_graphs->At(i);
-      if (gr->GetName()=="Integral") continue;
+      // Ignore integral graph
+      if (IsIntegralGraph(gr)) continue;
       // Get integral
       double integral = EventDisplay::GetGraphIntegral(gr,start_t,end_t);
       integral = EventDisplay::AdjustIntegral(detector,integral);
@@ -1519,6 +1532,13 @@ namespace display {
   }
 
   //________________________________________________________________________________________  
+  bool EventDisplay::IsIntegralGraph(TGraph* gr) {
+      TString grname = gr->GetName();
+      if (!grname.CompareTo("Integral")) return true;
+      return false;
+  }
+
+  //________________________________________________________________________________________  
   void EventDisplay::SetIntegralGraph(TGraph* gr, double maxoverride) {
     const int N = gr->GetN();
     const double* x = gr->GetX();
@@ -1548,9 +1568,9 @@ namespace display {
 
   //________________________________________________________________________________________  
   void EventDisplay::SetIntegralGraph(TGraph* gr, TMultiGraph* mg) {
-    const int N = gr->GetN();
-    const double* x = gr->GetX();
-    const double* y = gr->GetY();
+    // const int N = gr->GetN();
+    // const double* x = gr->GetX();
+    // const double* y = gr->GetY();
     const double max = EventDisplay::GetMaxOfMultiGraph(mg);
     EventDisplay::SetIntegralGraph(gr,max);
     return;
@@ -1596,7 +1616,7 @@ namespace display {
 
   //________________________________________________________________________________________
   void EventDisplay::DrawTPCPulses(int ch) {
-    for(int i=0;i<tpc_pulse_vec.size();i++) {
+    for(size_t i=0;i<tpc_pulse_vec.size();i++) {
       // Draw pulse box
       double min;
       if (ch == display::channeltype::kSumChannel)
@@ -1617,7 +1637,7 @@ namespace display {
 
   //________________________________________________________________________________________
   void EventDisplay::DrawTPCSPEs(int ch) {
-    for(int i=0;i<tpc_spe_vec.size();i++) {
+    for(size_t i=0;i<tpc_spe_vec.size();i++) {
       if (tpc_spe_vec.at(i)->channel != ch) continue;  // Only draw SPEs for the plotted channel
       TBox* box = new TBox(tpc_spe_vec.at(i)->start_us, tpc_spe_vec.at(i)->base + tpc_spe_vec.at(i)->height, tpc_spe_vec.at(i)->end_us, tpc_spe_vec.at(i)->base);
       box->SetLineColor(kRed);
@@ -1629,7 +1649,7 @@ namespace display {
   //________________________________________________________________________________________
   void EventDisplay::PrintTPCPulses() {
     double p0integral(9.e9);
-    for(int i=0; i<tpc_pulse_vec.size(); i++) {
+    for(size_t i=0; i<tpc_pulse_vec.size(); i++) {
       double integral = EventDisplay::GetGraphIntegral(EventDisplay::GetSumGraph("tpc"),tpc_pulse_vec.at(i)->start_us,tpc_pulse_vec.at(i)->end_us);
       double integral90ns = EventDisplay::GetGraphIntegral(EventDisplay::GetSumGraph("tpc"),tpc_pulse_vec.at(i)->start_us,tpc_pulse_vec.at(i)->start_us+0.09);
       double f90 = integral90ns/integral;
@@ -1647,11 +1667,16 @@ namespace display {
 	       <<" Integral/Pulse0Integral: "<<std::setw(5)<<ratio
 	       <<std::endl;
     }
+    // Print Current window integral
+    double start_t = EventDisplay::GetAxisValue("min");
+    double end_t   = EventDisplay::GetAxisValue("max");
+    double window_integral = EventDisplay::GetGraphIntegral(EventDisplay::GetSumGraph("tpc"),start_t,end_t);
+    std::cout<<"Integral of current window: "<<window_integral<<std::endl;
   }          
                     
   //________________________________________________________________________________________
   void EventDisplay::DrawLSVClusters() {
-    for(int i=0;i<lsv_cluster_vec.size();i++) {
+    for(size_t i=0;i<lsv_cluster_vec.size();i++) {
       TBox* box = new TBox(lsv_cluster_vec.at(i)->start_ns, 0, lsv_cluster_vec.at(i)->end_ns, gPad->GetUymax());
       box->SetLineColor(kGreen);
       box->SetFillStyle(0);
@@ -1661,7 +1686,7 @@ namespace display {
 
   //________________________________________________________________________________________
   void EventDisplay::PrintLSVClusters() {
-    for(int i=0; i<lsv_cluster_vec.size(); i++) {
+    for(size_t i=0; i<lsv_cluster_vec.size(); i++) {
       std::cout<<"Cluster: " <<i
 	       <<"\tStart: " <<lsv_cluster_vec.at(i)->start_ns
 	       <<"\tEnd: "   <<lsv_cluster_vec.at(i)->end_ns
@@ -1674,7 +1699,7 @@ namespace display {
 
   //________________________________________________________________________________________
   void EventDisplay::DrawLSVROIs() {
-    for(int i=0;i<lsv_roi_vec.size();i++) {
+    for(size_t i=0;i<lsv_roi_vec.size();i++) {
       TBox* box = new TBox(lsv_roi_vec.at(i)->start_ns, 0, lsv_roi_vec.at(i)->end_ns, gPad->GetUymax());
       box->SetLineColor(kRed);
       box->SetFillStyle(0);

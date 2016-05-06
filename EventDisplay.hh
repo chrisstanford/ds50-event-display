@@ -300,6 +300,7 @@ namespace display {
     TGraph* GetSumGraph(std::string detector);
     TMultiGraph* GetSumMultiGraph(std::string detector);
     TMultiGraph* GetChannelMultiGraph(std::string detector);
+    bool IsIntegralGraph(TGraph* gr); // Determin if the graph is an integral graph
     void SetIntegralGraph(TGraph* gr, double maxoverride=-1.); // Make integral for sum or channel
     void SetIntegralGraph(TGraph* gr, TMultiGraph* mg); // Make integral for allchannel using sum 
     bool MultiGraphContainsIntegral(TMultiGraph* mg); // check if multigraph contains an integral graph    
