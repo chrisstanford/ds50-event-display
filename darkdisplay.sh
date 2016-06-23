@@ -34,6 +34,10 @@ If you want to show the V1724 waveforms for the TPC (will only work for runs tha
 If you want to enable 3D event reconstruction
 ./darkdisplay.sh -t -r 5475 -e 42474 --enable3D
 
+If you want to ONLY get the sum waveform (kipping all channel waveforms)
+./darkdisplay.sh -t -r 5475 -e 42474 --skipchannels
+
+
 * See redmine wiki on how to open up root files you've already created and for how to submit a batch of many events
 EOF
 }
@@ -42,6 +46,7 @@ tpc_enabled=false
 od_enabled=false
 current_directory="${PWD}";
 enabled_3d=""
+skip_display_channels=[]
 # Get command line options
 while getopts "htor:e:c:f:d:-:" opt; do
     case "$opt" in
@@ -73,6 +78,8 @@ while getopts "htor:e:c:f:d:-:" opt; do
 		"useV1724"*) useV1724=true
 		    ;;
 		"enable3D"*) enabled_3d="--enable3D";
+		    ;;
+		"skipchannels"*) skip_display_channels=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39]
 	    esac
     esac
 done
@@ -150,8 +157,10 @@ printf \
 "single_event : ${event}\n\
 consecutive_events : ${consecutive_events}\n\
 od_display_output : \"${od_display_output}\"\n\
-tpc_display_output : \"${tpc_display_output}\"\n"\
+tpc_display_output : \"${tpc_display_output}\"\n\
+skip_display_channels : ${skip_display_channels}\n"\
 >event_selection.fcl
+# cat event_selection.fcl
 
 # # Check if run is defined
 # if [ -z "$run" ]; then
