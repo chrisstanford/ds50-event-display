@@ -1755,6 +1755,7 @@ std::string GetArgument(std::string argwanted, int argc, char* argv[]) {
     if (argwanted=="tpc" && (arg.find("tpc")!=std::string::npos)) return arg;
     if (argwanted=="od"  && (arg.find("od") !=std::string::npos)) return arg;
     if (argwanted=="opt" && (arg.find("--enable3D") !=std::string::npos)) return arg;
+    if (argwanted=="mode"&& (arg.find("-h") !=std::string::npos)) return arg;
     if (argwanted=="mode"&& (arg.find("-d") !=std::string::npos)) return arg;
     if (argwanted=="dir" && (arg.find("-d") !=std::string::npos)) return argv[i+1];
   }
@@ -1773,6 +1774,11 @@ int main(int argc, char* argv[]) {
   std::string option3d= GetArgument("opt",argc,argv);
   std::string mode    = GetArgument("mode",argc,argv);
   std::string directory=GetArgument("dir",argc,argv);
+
+  if (mode == "-h") {
+    PrintUsage();
+    return 0;
+  }
   // std::string arg1;
   // std::string arg2;
   // std::string arg3;

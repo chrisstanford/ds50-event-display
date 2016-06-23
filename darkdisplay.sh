@@ -130,9 +130,9 @@ printf "#################################\n"
 
 # Change to build directory
 if [ ! -d "$CETPKG_BUILD" ]; then
-    printf "\nERROR: High level analysis is not set up! Setting it up for you...\n"
+    printf "\nHigh level analysis is not set up! Setting it up for you...\n"
     if [ ! -f /ds50/app/ds50/setup_ds50 ]; then
-	echo "Could not find /ds50/app/ds50/setup_ds50. Are you sure you're on ds50srv.fnal.gov?"
+	echo "\nERROR: Could not find /ds50/app/ds50/setup_ds50. Are you sure you're on ds50srv.fnal.gov?"
 	kill -INT $$ # Stop the script
     fi
     source /ds50/app/ds50/setup_ds50
@@ -212,7 +212,9 @@ if [ "$tpc_enabled" = "true" ]; then
     if [ -n "$tpcfile" ]; then # File found on fermigrid
 	art -c $tpcfcl xroot://fndca4a.fnal.gov:1094/pnfs/fnal.gov/usr/$tpcfile
     else
-	echo "ERROR: The TPC file for the requested subrun was not found on Fermigrid" 
+	echo "\nERROR: The TPC file for the requested subrun was not found on Fermigrid. Try re-authenticating with kerberos." 
+	kill -INT $$ # Stop the script
+
     fi
 
 fi
@@ -276,14 +278,15 @@ if [ "$od_enabled" = "true" ]; then
     if [ -n "$odfile" ]; then # OD file was found on Fermigrid
         # Check if raw data is already on ds50
 	# Copy the file over to ds50 if not
-	if [ -s "/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat" ]; then
+	if [ ! -s "/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat" ]; then
 	    globus-url-copy -vb -g2 -cd -p 10 gsiftp://fndca1.fnal.gov:2811/darkside/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_001.dat /scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/
 	fi
 	if [ ! -s "/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat" ]; then
 	    echo "OD subrun failed to copy over from Fermigrid"
 	fi
     else	
-	echo "ERROR: The OD file for the first subrun was not found on Fermigrid" 
+	echo "ERROR: The OD file for the first subrun was not found on Fermigrid  Try re-authenticating with kerberos." 
+	kill -INT $$ # Stop the script
     fi
     if [ -n "$odsubfile" ]; then # OD file was found on Fermigrid
         # Check if raw data is already on ds50
@@ -292,10 +295,12 @@ if [ "$od_enabled" = "true" ]; then
 	    globus-url-copy -vb -g2 -cd -p 10 gsiftp://fndca1.fnal.gov:2811/darkside/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat /scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/
 	fi
 	if [ ! -s "/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat" ]; then
-	    echo "OD subrun failed to copy over from Fermigrid"
+	    echo "\nError: OD subrun failed to copy over from Fermigrid Try re-authenticating with kerberos." 
+	    kill -INT $$ # Stop the script
 	fi
     else	
-	echo "ERROR: The OD file for the requested subrun was not found on Fermigrid" 
+	echo "\nERROR: The OD file for the requested subrun was not found on Fermigrid. Try re-authenticating with kerberos." 
+	kill -INT $$ # Stop the script 
     fi
     # Run art
     odfile_subrun1=/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat
