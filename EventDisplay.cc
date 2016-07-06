@@ -9,7 +9,22 @@ namespace display {
     wt_enabled(false),
     tpc_geo_enabled(false),
     lsv_geo_enabled(false),
-    wt_geo_enabled(false)
+    wt_geo_enabled(false),
+    tpc_sum(0),
+    tpc_chan(0),
+    lsv_ampl_sum(0),
+    lsv_ampl_chan(0),
+    lsv_disc_sum(0),
+    lsv_disc_chan(0),
+    wt_ampl_sum(0),
+    wt_ampl_chan(0),
+    wt_disc_sum(0),
+    wt_disc_chan(0),
+    wf_integral(0),
+    lsv_cluster_tree(0),
+    lsv_roi_tree(0),
+    tpc_pulse_tree(0),
+    tpc_spe_tree(0)
   {
     if (option.find("V") != std::string::npos) enabled_3d = true;
     else enabled_3d = false;
@@ -26,7 +41,22 @@ namespace display {
     wt_enabled(false),
     tpc_geo_enabled(false),
     lsv_geo_enabled(false),
-    wt_geo_enabled(false)
+    wt_geo_enabled(false),
+    tpc_sum(0),
+    tpc_chan(0),
+    lsv_ampl_sum(0),
+    lsv_ampl_chan(0),
+    lsv_disc_sum(0),
+    lsv_disc_chan(0),
+    wt_ampl_sum(0),
+    wt_ampl_chan(0),
+    wt_disc_sum(0),
+    wt_disc_chan(0),
+    wf_integral(0),
+    lsv_cluster_tree(0),
+    lsv_roi_tree(0),
+    tpc_pulse_tree(0),
+    tpc_spe_tree(0)
   {
     LoadDirectory(directory);
     if (option.find("V") != std::string::npos) enabled_3d = true;
@@ -192,10 +222,12 @@ namespace display {
 
   //________________________________________________________________________________________
   int EventDisplay::LoadEventTPC(const char* dettab) {
+    if (tpc_chan) std::cout<<"Channel graph exists load"<<std::endl;
     if (!tpc_enabled) return 0;
     // Load TPC event
     const std::string detectortab = dettab;
     int selected;
+    tpc_display_tree->GetEntries();
     if      (detectortab=="tpc") selected = tpc_event_selection_frame->listbox_events_tpc->GetSelected();
     else if (detectortab=="lsv") selected = lsv_event_selection_frame->listbox_events_tpc->GetSelected();
     else if (detectortab=="wt" ) selected =  wt_event_selection_frame->listbox_events_tpc->GetSelected();
@@ -246,26 +278,28 @@ namespace display {
     {
       const int N_spes = tpc_spe_tree->GetEntries();
       std::cout<<"Found "<<N_spes<<" TPC SPEs.\n";
-      int channel;
-      double start_us;
-      double end_us;
-      double base;
-      double height;
-      tpc_spe_tree->SetBranchAddress("channel",&channel);
-      tpc_spe_tree->SetBranchAddress("start_us",&start_us);
-      tpc_spe_tree->SetBranchAddress("end_us",&end_us);
-      tpc_spe_tree->SetBranchAddress("base",&base);
-      tpc_spe_tree->SetBranchAddress("height",&height);
-      for(int i=0; i<N_spes; i++) {
-	tpc_spe_tree->GetEntry(i);
-	display::TPCSPE* s = new display::TPCSPE(); 
-	s->channel  = channel;
-	s->start_us = start_us;
-	s->end_us   = end_us;
-	s->base     = base;
-	s->height   = height;
-	tpc_spe_vec.push_back(s);
-      }  
+      if (N_spes>0) {
+	int channel;
+	double start_us;
+	double end_us;
+	double base;
+	double height;
+	tpc_spe_tree->SetBranchAddress("channel",&channel);
+	tpc_spe_tree->SetBranchAddress("start_us",&start_us);
+	tpc_spe_tree->SetBranchAddress("end_us",&end_us);
+	tpc_spe_tree->SetBranchAddress("base",&base);
+	tpc_spe_tree->SetBranchAddress("height",&height);
+	for(int i=0; i<N_spes; i++) {
+	  tpc_spe_tree->GetEntry(i);
+	  display::TPCSPE* s = new display::TPCSPE(); 
+	  s->channel  = channel;
+	  s->start_us = start_us;
+	  s->end_us   = end_us;
+	  s->base     = base;
+	  s->height   = height;
+	  tpc_spe_vec.push_back(s);
+	}  
+      }
     }
     if (canvas) EventDisplay::DrawDefaultWaveform("tpc");
     std::cout<<"Event loaded."<<std::endl;
@@ -498,16 +532,18 @@ namespace display {
     listbox_waveforms = new TGListBox(this);
     listbox_waveforms->AddEntry("Sum Channels",display::channeltype::kSumChannel);
     listbox_waveforms->AddEntry("All Channels",display::channeltype::kAllChannel);
-    TList* list_chan = mg_chan->GetListOfGraphs();
-    std::cout<<"Found "<<list_chan->GetSize()<<" channel graphs.\n";
-    for(int i=0;i<list_chan->GetSize();i++) {
-      if (!list_chan->At(i)) continue;	  
-      TGraph* tg = (TGraph*)(list_chan->At(i));
-      std::string title = tg->GetTitle();
-      std::string::size_type pos1 = title.find("Ch");
-      std::string::size_type pos2 = title.find(';');
-      if (pos1 != std::string::npos && pos2 != std::string::npos) title = title.substr(pos1, pos2-pos1);
-      listbox_waveforms->AddEntry(title.c_str(),i);
+    if (mg_chan && mg_chan->GetListOfGraphs()) {
+      TList* list_chan = mg_chan->GetListOfGraphs();
+      std::cout<<"Found "<<list_chan->GetSize()<<" channel graphs.\n";
+      for(int i=0;i<list_chan->GetSize();i++) {
+	if (!list_chan->At(i)) continue;	  
+	TGraph* tg = (TGraph*)(list_chan->At(i));
+	std::string title = tg->GetTitle();
+	std::string::size_type pos1 = title.find("Ch");
+	std::string::size_type pos2 = title.find(';');
+	if (pos1 != std::string::npos && pos2 != std::string::npos) title = title.substr(pos1, pos2-pos1);
+	listbox_waveforms->AddEntry(title.c_str(),i);
+      }
     }
     listbox_waveforms->Select(display::channeltype::kSumChannel);
     AddFrame(listbox_waveforms, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandY | kLHintsExpandX,0,0,10,0));
@@ -1164,6 +1200,7 @@ namespace display {
   //________________________________________________________________________________________
   double EventDisplay::GetMaxOfMultiGraph(TMultiGraph* mg, double start_t=-9.e9, double end_t=9.e9) {    
     TList* list_graphs = mg->GetListOfGraphs();
+    if (!list_graphs) return 0.;
     int N_channels = list_graphs->GetSize();
     if (MultiGraphContainsIntegral(mg)) N_channels--;
     double max = 0;
@@ -1579,6 +1616,7 @@ namespace display {
   //________________________________________________________________________________________
   bool EventDisplay::MultiGraphContainsIntegral(TMultiGraph* mg) {
     TList* list_graphs = mg->GetListOfGraphs();
+    if (!list_graphs) return false;
     for (int i=0;i<list_graphs->GetSize();i++) {
       std::string obj_name = list_graphs->At(i)->GetName();
       if (obj_name=="Integral") return true;
@@ -1667,11 +1705,21 @@ namespace display {
 	       <<" Integral/Pulse0Integral: "<<std::setw(5)<<ratio
 	       <<std::endl;
     }
-    // Print Current window integral
+    // Print current window integral
     double start_t = EventDisplay::GetAxisValue("min");
     double end_t   = EventDisplay::GetAxisValue("max");
+    std::cout<<"Integrals of current window ("<<start_t<<" to "<<end_t<<")"<<std::endl;
     double window_integral = EventDisplay::GetGraphIntegral(EventDisplay::GetSumGraph("tpc"),start_t,end_t);
-    std::cout<<"Integral of current window: "<<window_integral<<std::endl;
+    std::cout<<"Sum: "<<window_integral<<std::endl;
+    TList* list_chan = tpc_chan->GetListOfGraphs();
+    if (list_chan) {
+      for(int i=0;i<list_chan->GetSize();i++) {
+	if (!list_chan->At(i)) continue;
+	TGraph* tg = (TGraph*)(list_chan->At(i));
+	double ch_integral = EventDisplay::GetGraphIntegral(tg,start_t,end_t);
+	std::cout<<"Ch "<<GetChannelIDFromMultigraphID(i,tpc_chan)<<": "<<ch_integral<<std::endl;
+      }
+    }
   }          
                     
   //________________________________________________________________________________________

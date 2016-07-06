@@ -286,11 +286,11 @@ namespace display{
     return "#000000";
   }
   inline void SetChannelColors(std::string detector,TMultiGraph* mg) {
-    //      std::cout<<"Initializing colors";
+    if (!mg) return;
     TList* mg_list = mg->GetListOfGraphs();
+    if (!mg_list) return;
     for(int i=0;i<mg_list->GetSize();i++) { 
       if (!mg_list->At(i)) continue;
-      //	std::cout<<"Coloring: "<<mg_list->At(i)->GetName()<<std::endl;
       TGraph* tg = (TGraph*)(mg_list->At(i));
       tg->SetLineColor(TColor::GetColor
 		       (display::GetChannelColor

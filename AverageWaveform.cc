@@ -10,19 +10,21 @@
 #include "TBranch.h"
 #include "TCanvas.h"
 #include "TAxis.h"
+#include "TH1D.h"
 using namespace std;
 
 int main(int argc, char* argv[]) {
   // Directory containing output files to be averaged should be the first argument
   if (argc<4) {
-    cout<<"Usage: ./AverageWaveform <display_output_directory> <pulse_id> <pre_start_time> <post_start_time> <max_number_of_waveforms>"<<endl;
+    cout<<"Usage: ./AverageWaveform <display_output_directory> <pulse_id> <pre_start_time> <post_start_time> <number_of_histogram_bins> <max_number_of_waveforms>"<<endl;
     return 0;
   }
   char* dir = argv[1];
   int pulse_id = std::atoi(argv[2]);
   double pre_start_time = std::atof(argv[3]);
   double post_start_time = std::atof(argv[4]);
-  int max_files = std::atof(argv[5]);
+  int nbins = std::atof(argv[5]);
+  int max_files = std::atof(argv[6]);
   TString stringdir = dir;
   void* opendir = gSystem->OpenDirectory(dir);
   const char* fname;
@@ -150,10 +152,18 @@ int main(int argc, char* argv[]) {
   
 
   cout<<"Saving to "<<outname<<endl;
+
+  // Make TGraph
   TGraph* tgr = new TGraph(N, X, Y);
   tgr->Write();
 
-  TCanvas* c = new TCanvas("c","Canvas",1000,800);
+  // Make Histogram
+  TH1D* h = new TH1D("Histogram","Average Waveform",nbins,-pre_start_time,post_start_time);
+  for (int i=0; i<N; i++) h->Fill(X[i],Y[i]);
+  h->Write();
+
+  // Make Canvas
+  TCanvas* c = new TCanvas("Canvas","Canvas",1000,800);
   tgr->Draw("al");
   c->SetLogy();
   tgr->GetYaxis()->SetRangeUser(1e-9,1e-1);
