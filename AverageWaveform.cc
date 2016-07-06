@@ -119,8 +119,8 @@ int main(int argc, char* argv[]) {
     }
     if (skip) {
       //      delete gr;
-      delete x;
-      delete y;
+      // delete x;
+      // delete y;
       continue;
     }
     //    cout<<tpc_run_id<<" "<<tpc_event_id<<" "<<start_us<<endl;    
@@ -133,8 +133,8 @@ int main(int argc, char* argv[]) {
       k++;
     }
      //    delete gr;
-    delete x;
-    delete y;
+    // delete x;
+    // delete y;
 
       
   }
