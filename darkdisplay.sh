@@ -139,7 +139,7 @@ printf "#################################\n"
 if [ ! -d "$CETPKG_BUILD" ]; then
     printf "\nHigh level analysis is not set up! Setting it up for you...\n"
     if [ ! -f /ds50/app/ds50/setup_ds50 ]; then
-	echo "\nERROR: Could not find /ds50/app/ds50/setup_ds50. Are you sure you're on ds50srv.fnal.gov?"
+	echo "ERROR: Could not find /ds50/app/ds50/setup_ds50. Are you sure you're on ds50srv.fnal.gov?"
 	kill -INT $$ # Stop the script
     fi
     source /ds50/app/ds50/setup_ds50
@@ -153,14 +153,7 @@ export FHICL_FILE_PATH=$FHICL_FILE_PATH:/ds50/app/user/${USER}/work/darkart/fcl
 
 # Create temp fcl file with desired event number and number of consecutive events desired.
 # The od and tpc display fcl files look for this fcl file so they know which events to process.
-printf \
-"single_event : ${event}\n\
-consecutive_events : ${consecutive_events}\n\
-od_display_output : \"${od_display_output}\"\n\
-tpc_display_output : \"${tpc_display_output}\"\n\
-skip_display_channels : ${skip_display_channels}\n"\
->event_selection.fcl
-# cat event_selection.fcl
+#cat event_selection.fcl
 
 # # Check if run is defined
 # if [ -z "$run" ]; then
@@ -219,9 +212,16 @@ if [ "$tpc_enabled" = "true" ]; then
     done
     # Run art
     if [ -n "$tpcfile" ]; then # File found on fermigrid
+	printf \
+	    "single_event : ${event}\n\
+            consecutive_events : ${consecutive_events}\n\
+            od_display_output : \"${od_display_output}\"\n\
+            tpc_display_output : \"${tpc_display_output}\"\n\
+            skip_display_channels : ${skip_display_channels}\n"\
+            >event_selection.fcl
 	art -c $tpcfcl xroot://fndca4a.fnal.gov:1094/pnfs/fnal.gov/usr/$tpcfile
     else
-	echo "\nERROR: The TPC file for the requested subrun was not found on Fermigrid. Try re-authenticating with kerberos." 
+	echo "ERROR: The TPC file for the requested subrun was not found on Fermigrid. Try re-authenticating with kerberos." 
 	kill -INT $$ # Stop the script
 
     fi
@@ -304,16 +304,23 @@ if [ "$od_enabled" = "true" ]; then
 	    globus-url-copy -vb -g2 -cd -p 10 gsiftp://fndca1.fnal.gov:2811/darkside/raw/${phase}/lsv/ODRun${RUNAB}xxxx/ODRun${RUNABCDE}x/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat /scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/
 	fi
 	if [ ! -s "/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_${FULLSUBNUM}.dat" ]; then
-	    echo "\nError: OD subrun failed to copy over from Fermigrid Try re-authenticating with kerberos." 
+	    echo "Error: OD subrun failed to copy over from Fermigrid Try re-authenticating with kerberos." 
 	    kill -INT $$ # Stop the script
 	fi
     else	
-	echo "\nERROR: The OD file for the requested subrun was not found on Fermigrid. Try re-authenticating with kerberos." 
+	echo "ERROR: The OD file for the requested subrun was not found on Fermigrid. Try re-authenticating with kerberos." 
 	kill -INT $$ # Stop the script 
     fi
     # Run art
     odfile_subrun1=/scratch/darkside/rawdata/odrawdata/ODRun${FULLRUNNUM}/ODRun${FULLRUNNUM}_001.dat
     if [ -n "$odfile_subrun1" ]; then
+	printf \
+	    "single_event : ${event}\n\
+            consecutive_events : ${consecutive_events}\n\
+            od_display_output : \"${od_display_output}\"\n\
+            tpc_display_output : \"${tpc_display_output}\"\n\
+            skip_display_channels : ${skip_display_channels}\n"\
+            >event_selection.fcl
 	art -c $odfcl $odfile_subrun1
     fi
 fi

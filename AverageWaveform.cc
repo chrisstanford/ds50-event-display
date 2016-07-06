@@ -1,5 +1,5 @@
 #include <iostream>
-
+#include <string>
 #include "TSystem.h"
 #include "TFile.h"
 #include "TChain.h"
@@ -12,6 +12,13 @@
 #include "TAxis.h"
 #include "TH1D.h"
 using namespace std;
+
+#include <fstream>
+std::ifstream::pos_type filesize(const char* filename)
+{
+  std::ifstream in(filename, std::ifstream::ate | std::ifstream::binary);
+  return in.tellg(); 
+}
 
 int main(int argc, char* argv[]) {
   // Directory containing output files to be averaged should be the first argument
@@ -38,6 +45,10 @@ int main(int argc, char* argv[]) {
       continue;
     TString filepath = stringdir+"/"+filename;
     //    TFile* f = TFile::Open(filepath);
+    if (filesize(filepath.Data())<1000) {
+      cout<<filepath.Data()<<" is too small to contain any waveforms. Skipping..."<<endl;
+      continue;
+    }
     cout<<"Adding "<<filepath.Data()<<endl;
     tpc_display_tree->Add(filepath);
     i_files++;
@@ -53,7 +64,7 @@ int main(int argc, char* argv[]) {
   tpc_display_tree->SetBranchAddress("tpc_sum",        &tpc_sum);//, &b_tpc_sum);
   tpc_display_tree->SetBranchAddress("tpc_chan",       &tpc_chan);
   tpc_display_tree->SetBranchAddress("tpc_pulse_tree", &tpc_pulse_tree);
-
+  
   double start_us;
   double end_us;
   double peak_us;
@@ -63,13 +74,16 @@ int main(int argc, char* argv[]) {
   double interval = 0.004; // 4 ns interval
   const int N = (pre_start_time+post_start_time)/interval;
   double* X = new double[N];
-  double* Y = new double[N];  
+  double* Y = new double[N];
+  double* eX = new double[N];
+  double* eY = new double[N];  
   for (int i=0; i<N; i++) {
     X[i] = i*interval; 
     Y[i] = 0.;
+    eX[i]= 0.;
+    eY[i]= 0.;
   }
-
-  TString outname = "average_"+stringdir+".root";
+  TString outname = "average_"+stringdir+"_pulse"+to_string(pulse_id)+".root";
   TFile* fout = new TFile(outname,"RECREATE");
 
 
@@ -84,13 +98,31 @@ int main(int argc, char* argv[]) {
     if (!tpc_sum) continue;
     if (!tpc_sum->GetListOfGraphs()) continue;
     if (!tpc_pulse_tree) continue;
+
+    // Get Run and event id from file
+    TString fname = tpc_display_tree->GetFile()->GetName();
+    int slash = fname.Last('/');
+    fname.Remove(0,slash+1);
+    int i1 = fname.Index("_r");
+    int i2 = fname.Index("_e");
+    int i3 = fname.Index(".r");
+    TString tsr (fname(i1+2,i2-i1-2));
+    TString tse (fname(i2+2,i3-i2-2));
+    cout<<fname.Data()<<endl;
+    string sr = tsr.Data();
+    string se = tse.Data();
+    int ir = stoi(sr);
+    int ie = stoi(se);
+    if (ir!=tpc_run_id||ie!=tpc_event_id) {
+      cout<<"Error: Event info (r"<<tpc_run_id<<" e"<<tpc_event_id<<")"<<" does not match file info (r"<<ir<<" e"<<ie<<"). Skipping..."<<endl;
+      continue;
+    }
     tpc_pulse_tree->SetBranchAddress("start_us",&start_us);
     tpc_pulse_tree->SetBranchAddress("end_us",&end_us);
     tpc_pulse_tree->SetBranchAddress("peak_us",&peak_us);
     tpc_pulse_tree->SetBranchAddress("base",&base);
     tpc_pulse_tree->SetBranchAddress("height",&height);
     
-
     TGraph* gr = (TGraph*)(tpc_sum->GetListOfGraphs()->First());
     int n = gr->GetN();
     double* x = gr->GetX();
@@ -127,11 +159,11 @@ int main(int argc, char* argv[]) {
     }
     //    cout<<tpc_run_id<<" "<<tpc_event_id<<" "<<start_us<<endl;    
     // Add waveform
-    int k=0; // iterator over final fraph which goes from 0 to pre_start_time+post_start_time
-    for (int j=0; k<N && j<n; j++) {
+    int k=0; // iterator over averaged graph which goes from 0 to pre_start_time+post_start_time
+    for (int j=0; k<N && j<n; j++) { // j<n prevents overflow of the individual graph
       if (x[j]<average_start-pre_start_time) continue;
-      Y[k] += -y[j]*1e-8; // Invert graph from negative to positive
-      //      if (k==100) cout<<Y[k]<<endl;
+      Y[k] += -y[j]; // Invert graph from negative to positive
+      //if (k==100) cout<<Y[k]<<endl;
       k++;
     }
      //    delete gr;
@@ -141,20 +173,26 @@ int main(int argc, char* argv[]) {
       
   }
 
+  // Errors
+  for (int i=0; i<N; i++) {
+    eY[i]=sqrt(Y[i]);
+  }
+  
+
   // Normalize integral to 1
   double sum=0.;
   for (int i=0; i<N; i++) {
     sum+=Y[i];
   }
   for (int i=0; i<N; i++) {
-    Y[i]/=sum;;
+    Y[i]/=sum;
+    eY[i]/=sum;
   }
-  
-
+ 
   cout<<"Saving to "<<outname<<endl;
 
   // Make TGraph
-  TGraph* tgr = new TGraph(N, X, Y);
+  TGraphErrors* tgr = new TGraphErrors(N, X, Y, eX, eY);
   tgr->Write();
 
   // Make Histogram
