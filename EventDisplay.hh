@@ -264,6 +264,9 @@ namespace display {
     TEveRGBAPaletteOverlay* tpc_palette;
     TEveRGBAPaletteOverlay* lsv_palette;
     TEveRGBAPaletteOverlay* wt_palette;
+
+    double axis_min;
+    double axis_max;
       
     void LoadFile(std::string, std::string); 
     void LoadDirectory(std::string directory); 
@@ -274,7 +277,8 @@ namespace display {
     void DrawTPCSPEs(int ch);
     void DrawLSVClusters();     
     void DrawLSVROIs();
-    void ZoomAxis(double start_ns,double end_ns);
+    void ZoomAxis(double start_t,double end_t);
+    void SetAxisLimits(double start_t,double end_t);
     void CreateWaveformTab();
     void CreateWaveformTPCTab();
     void CreateWaveformODTab(std::string detector);
@@ -290,7 +294,7 @@ namespace display {
     int  GetChannelIDFromMultigraphID(int mg_id, TMultiGraph* mg); // Channel id from graph at index mg_id in multigraph
     int  GetMultigraphIDFromChannelID(int ch_id, TMultiGraph* mg); // Index of graph for channel ch_id in multigraph
     double GetMaxOfMultiGraph(TMultiGraph* mg, double start_t, double end_t);
-    double GetGraphIntegral(TGraph* g, double start_t, double end_t);
+    double GetGraphIntegral(TGraph* g, double start_t, double end_t, std::string option="abs");
     double GetAxisValue(std::string option);
     double GetBinWidth(std::string detector);
     double AdjustIntegral(std::string detector, double integral); // Adjust the numerical integral to proper units 

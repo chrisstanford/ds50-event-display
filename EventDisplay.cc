@@ -24,7 +24,9 @@ namespace display {
     lsv_cluster_tree(0),
     lsv_roi_tree(0),
     tpc_pulse_tree(0),
-    tpc_spe_tree(0)
+    tpc_spe_tree(0),
+    axis_min(0.),
+    axis_max(0.)
   {
     if (option.find("V") != std::string::npos) enabled_3d = true;
     else enabled_3d = false;
@@ -56,7 +58,9 @@ namespace display {
     lsv_cluster_tree(0),
     lsv_roi_tree(0),
     tpc_pulse_tree(0),
-    tpc_spe_tree(0)
+    tpc_spe_tree(0),
+    axis_min(0.),
+    axis_max(0.)
   {
     LoadDirectory(directory);
     if (option.find("V") != std::string::npos) enabled_3d = true;
@@ -222,8 +226,13 @@ namespace display {
 
   //________________________________________________________________________________________
   int EventDisplay::LoadEventTPC(const char* dettab) {
-    if (tpc_chan) std::cout<<"Channel graph exists load"<<std::endl;
     if (!tpc_enabled) return 0;
+    // Get previous axis limits
+    bool is_drawn = EventDisplay::IsWaveformDrawn();
+    if (is_drawn) {
+	axis_min = EventDisplay::GetAxisValue("min");
+	axis_max = EventDisplay::GetAxisValue("max"); 
+    }
     // Load TPC event
     const std::string detectortab = dettab;
     int selected;
@@ -309,6 +318,12 @@ namespace display {
   //________________________________________________________________________________________
   int EventDisplay::LoadEventOD(const char* dettab) {
     if (!lsv_enabled&&!wt_enabled) return 0;
+    // Get previous axis limits
+    bool is_drawn = EventDisplay::IsWaveformDrawn();
+    if (is_drawn) {
+	axis_min = EventDisplay::GetAxisValue("min");
+	axis_max = EventDisplay::GetAxisValue("max"); 
+    }
     // Load OD event
     std::cout<<"Loading OD event."<<std::endl;
     const std::string detectortab = dettab;
@@ -781,9 +796,9 @@ namespace display {
     // Get previous axis limits
     bool is_drawn = EventDisplay::IsWaveformDrawn();
     std::string prev_det = EventDisplay::GetDetectorInActivePad();
-    double start_t = EventDisplay::GetAxisValue("min");
-    double end_t = EventDisplay::GetAxisValue("max"); 
-    // Draw waveform
+    double start_t = axis_min;// EventDisplay::GetAxisValue("min");
+    double end_t = axis_max;//EventDisplay::GetAxisValue("max"); 
+    // Clear Canvas
     TCanvas* c = gPad->GetCanvas();
     c->Clear();
     // Draw waveforms
@@ -813,7 +828,7 @@ namespace display {
       // Add Axis titles
       newtitle += oldtitle(oldtitle.First(";"),oldtitle.Length()-oldtitle.First(";"));
       mg->SetTitle(newtitle);
-      // Draw new mulitgraph
+      // Draw new multigraph
       mg->Draw("al");
     } else if (selected == display::channeltype::kSumChannel) {
       if (input=="tpc" && !EventDisplay::MultiGraphContainsIntegral(mg_sum)) { // add integral 
@@ -837,6 +852,7 @@ namespace display {
     }
     std::string new_det = EventDisplay::GetDetectorInActivePad();
     // Zoom new graph to previously set limits, if any
+    ///    EventDisplay::SetAxisLimits(start_t,end_t);
     if (is_drawn && prev_det==new_det) EventDisplay::ZoomAxis(start_t,end_t);
     c->Update();  
     // Draw boxes
@@ -876,7 +892,11 @@ namespace display {
 
   //________________________________________________________________________________________
   bool EventDisplay::IsWaveformDrawn() {
+    if (!gPad) return 0;
+    if (!gPad->GetCanvas()) return 0;
     TList* list_graphs = gPad->GetCanvas()->GetListOfPrimitives();
+    if (!list_graphs) return 0;
+    if (!list_graphs->GetSize()) return 0;
     for (int i=0;i<list_graphs->GetSize();i++) {
       std::string obj_name = list_graphs->At(i)->GetName();
       //	std::cout<<obj_name<<std::endl;
@@ -978,6 +998,30 @@ namespace display {
 	int start_bin = gr->GetXaxis()->FindBin(start_t);
 	int end_bin = gr->GetXaxis()->FindBin(end_t);
 	gr->GetXaxis()->SetRange(start_bin,end_bin);
+	break;
+      }
+    }
+    gPad->Modified();
+    gPad->Update();
+  }
+
+  //________________________________________________________________________________________     
+  void EventDisplay::SetAxisLimits(double start_t,double end_t) {
+    // Find the graph in the active canvas
+    TMultiGraph* mg;
+    TGraph* gr;
+    TList* list_graphs = gPad->GetCanvas()->GetListOfPrimitives();
+    for (int i=0;i<list_graphs->GetSize();i++) {
+      std::string obj_name = list_graphs->At(i)->GetName();
+      //	std::cout<<obj_name<<std::endl;
+      if (obj_name.find("mg_")!= std::string::npos) {
+	mg = (TMultiGraph*)gPad->GetPrimitive(obj_name.c_str());
+	mg->GetXaxis()->SetLimits(start_t,end_t);
+	break;
+      }
+      if (obj_name.find("gr_")!= std::string::npos) {
+	gr = (TGraph*)gPad->GetPrimitive(obj_name.c_str());
+	gr->GetXaxis()->SetLimits(start_t,end_t);
 	break;
       }
     }
@@ -1369,8 +1413,6 @@ namespace display {
     }
     if (option=="min") return start_ns;
     if (option=="max") return end_ns;
-    //    if (option=="minbin") return start_bin;
-    //    if (option=="maxbin") return end_bin;
     return 0.;
   }
 
@@ -1484,14 +1526,15 @@ namespace display {
   }
 
   //________________________________________________________________________________________
-  double EventDisplay::GetGraphIntegral(TGraph* g, double start_t, double end_t) {
+  double EventDisplay::GetGraphIntegral(TGraph* g, double start_t, double end_t, std::string option) {
     TH1D* h = new TH1D("h","h",g->GetN(),g->GetX()[0],g->GetX()[g->GetN()-1]);
     for(int i=0; i<g->GetN();i++) h->Fill(g->GetX()[i],g->GetY()[i]);
     int start_bin = h->GetXaxis()->FindBin(start_t);
     int end_bin = h->GetXaxis()->FindBin(end_t);
     double integral=h->Integral(start_bin,end_bin);
     delete h;
-    return fabs(integral);
+    if (option=="abs") return fabs(integral);
+    else return integral;
   }
 
   //________________________________________________________________________________________
@@ -1710,13 +1753,16 @@ namespace display {
     double end_t   = EventDisplay::GetAxisValue("max");
     std::cout<<"Integrals of current window ("<<start_t<<" to "<<end_t<<")"<<std::endl;
     double window_integral = EventDisplay::GetGraphIntegral(EventDisplay::GetSumGraph("tpc"),start_t,end_t);
-    std::cout<<"Sum: "<<window_integral<<std::endl;
+    std::cout<<"Sum: "<<window_integral<<" PE"<<std::endl;
     TList* list_chan = tpc_chan->GetListOfGraphs();
     if (list_chan) {
+      std::cout<<"Channels (arbitrary units)"<<std::endl;
       for(int i=0;i<list_chan->GetSize();i++) {
 	if (!list_chan->At(i)) continue;
-	TGraph* tg = (TGraph*)(list_chan->At(i));
-	double ch_integral = EventDisplay::GetGraphIntegral(tg,start_t,end_t);
+	TGraph* gr = (TGraph*)(list_chan->At(i));
+	std::string gr_name = gr->GetName();
+	if (gr_name=="Integral") continue;
+	double ch_integral = EventDisplay::GetGraphIntegral(gr,start_t,end_t,"not abs");
 	std::cout<<"Ch "<<GetChannelIDFromMultigraphID(i,tpc_chan)<<": "<<ch_integral<<std::endl;
       }
     }
