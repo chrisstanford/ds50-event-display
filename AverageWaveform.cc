@@ -106,7 +106,7 @@ int main(int argc, char* argv[]) {
     double average_start = start_us;
     for (int j=0; j<n; j++) {
       if (x[j]<start_us) continue;
-      if (abs(y[j])>0.5*abs(height)) { // Align by half maximum
+      if (fabs(y[j])>0.5*fabs(height)) { // Align by half maximum
 	average_start = x[j];
 	break;
       }
