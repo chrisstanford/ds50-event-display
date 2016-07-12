@@ -11,6 +11,7 @@
 #include "TCanvas.h"
 #include "TAxis.h"
 #include "TH1D.h"
+#include "TMath.h"
 using namespace std;
 
 int main(int argc, char* argv[]) {
@@ -106,7 +107,7 @@ int main(int argc, char* argv[]) {
     double average_start = start_us;
     for (int j=0; j<n; j++) {
       if (x[j]<start_us) continue;
-      if (fabs(y[j])>0.5*fabs(height)) { // Align by half maximum
+      if (TMath::Abs(y[j])>0.5*TMath::Abs(height)) { // Align by half maximum
 	average_start = x[j];
 	break;
       }
