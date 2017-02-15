@@ -795,9 +795,11 @@ namespace display {
     if (tobjarr_multi_chan->GetEntries()>0) selected=display::channeltype::kSelectedChannel;
     // Get previous axis limits
     bool is_drawn = EventDisplay::IsWaveformDrawn();
+    if (is_drawn) {
+      axis_min = EventDisplay::GetAxisValue("min");
+      axis_max = EventDisplay::GetAxisValue("max"); 
+    }
     std::string prev_det = EventDisplay::GetDetectorInActivePad();
-    double start_t = axis_min;// EventDisplay::GetAxisValue("min");
-    double end_t = axis_max;//EventDisplay::GetAxisValue("max"); 
     // Clear Canvas
     TCanvas* c = gPad->GetCanvas();
     c->Clear();
@@ -853,7 +855,10 @@ namespace display {
     std::string new_det = EventDisplay::GetDetectorInActivePad();
     // Zoom new graph to previously set limits, if any
     ///    EventDisplay::SetAxisLimits(start_t,end_t);
-    if (is_drawn && prev_det==new_det) EventDisplay::ZoomAxis(start_t,end_t);
+    if (is_drawn && prev_det==new_det) EventDisplay::ZoomAxis(axis_min,axis_max);
+    // Set axis limits 
+    axis_min = EventDisplay::GetAxisValue("min");
+    axis_max = EventDisplay::GetAxisValue("max");
     c->Update();  
     // Draw boxes
     if ((input=="tpc")&&tpc_pulse_frame->check_box->IsOn())
@@ -1756,18 +1761,116 @@ namespace display {
     std::cout<<"Sum: "<<window_integral<<" PE"<<std::endl;
     TList* list_chan = tpc_chan->GetListOfGraphs();
     if (list_chan) {
-      std::cout<<"Channels (arbitrary units)"<<std::endl;
-      for(int i=0;i<list_chan->GetSize();i++) {
-	if (!list_chan->At(i)) continue;
-	TGraph* gr = (TGraph*)(list_chan->At(i));
-	std::string gr_name = gr->GetName();
-	if (gr_name=="Integral") continue;
-	double ch_integral = EventDisplay::GetGraphIntegral(gr,start_t,end_t,"not abs");
-	std::cout<<"Ch "<<GetChannelIDFromMultigraphID(i,tpc_chan)<<": "<<ch_integral<<std::endl;
+      //      std::cout<<"Channels found: "<<list_chan->GetSize()<<std::endl;
+      if (list_chan->GetSize()==38) {
+	double rawsum = 0;
+	double ch_integrals[38];
+	for(int i=0;i<list_chan->GetSize();i++) {
+	  if (!list_chan->At(i)) continue;
+	  TGraph* gr = (TGraph*)(list_chan->At(i));
+	  std::string gr_name = gr->GetName();
+	  if (gr_name=="Integral") continue;
+	  rawsum += EventDisplay::GetGraphIntegral(gr,start_t,end_t,"abs");
+	}
+	double factor = window_integral/rawsum;
+	for(int i=0;i<list_chan->GetSize();i++) {
+	  if (!list_chan->At(i)) continue;
+	  TGraph* gr = (TGraph*)(list_chan->At(i));
+	  std::string gr_name = gr->GetName();
+	  if (gr_name=="Integral") continue;
+	  double ch_integral = EventDisplay::GetGraphIntegral(gr,start_t,end_t,"abs")*factor;
+	  //	  std::cout<<"Ch "<<GetChannelIDFromMultigraphID(i,tpc_chan)<<": "<<ch_integral<<" PE"<<std::endl;
+	  ch_integrals[GetChannelIDFromMultigraphID(i,tpc_chan)]=ch_integral;
+	}
+	EventDisplay::PrintTPCArray(ch_integrals); 
+      } else {
+	std::cout<<"Channels (arbitrary units)"<<std::endl;
+	for(int i=0;i<list_chan->GetSize();i++) {
+	  if (!list_chan->At(i)) continue;
+	  TGraph* gr = (TGraph*)(list_chan->At(i));
+	  std::string gr_name = gr->GetName();
+	  if (gr_name=="Integral") continue;
+	  double ch_integral = EventDisplay::GetGraphIntegral(gr,start_t,end_t,"not abs");
+	  std::cout<<"Ch "<<GetChannelIDFromMultigraphID(i,tpc_chan)<<": "<<ch_integral<<std::endl;
+	}
       }
     }
   }          
-                    
+
+  //________________________________________________________________________________________
+  void EventDisplay::PrintTPCArray(double* a) {
+    // This prints out a ascii diagram of the TPC array with the integrals for each PMT
+    char* c[38];
+    char* v[38];
+    double max=0;
+    int max_chan=0;
+    for (int i=0;i<38;i++) {
+      c[i] = Form("  %02d  ",i);
+      if (a[i]>max) {
+	max_chan = i;
+	max = a[i];
+      }
+      if (a[i]>99.9) {
+	v[i]=Form(" %1.1e",a[i]);
+	int idxToDel = 5; 
+	memmove(&v[i][idxToDel], &v[i][idxToDel + 1], strlen(v[i]) - idxToDel);
+	memmove(&v[i][idxToDel], &v[i][idxToDel + 1], strlen(v[i]) - idxToDel);
+      }
+      else v[i]=Form(" %04.1f ",a[i]);
+    }
+    c[max_chan] = Form("->%02d<-",max_chan);
+    
+    std::cout<<std::endl;
+    std::cout<<"TOP"<<std::endl;
+    std::cout<<Form("      %s%s%s",c[19],c[20],c[21])<<std::endl;
+    std::cout<<Form("      %s%s%s",v[19],v[20],v[21])<<std::endl;
+    std::cout<<Form("   %s%s%s%s",c[27],c[26],c[25],c[22])<<std::endl;
+    std::cout<<Form("   %s%s%s%s",v[27],v[26],v[25],v[22])<<std::endl;
+    std::cout<<Form("%s%s%s%s%s",c[28],c[29],c[30],c[24],c[23])<<std::endl;
+    std::cout<<Form("%s%s%s%s%s",v[28],v[29],v[30],v[24],v[23])<<std::endl;
+    std::cout<<Form("   %s%s%s%s",c[36],c[35],c[31],c[32])<<std::endl;
+    std::cout<<Form("   %s%s%s%s",v[36],v[35],v[31],v[32])<<std::endl;
+    std::cout<<Form("      %s%s%s",c[37],c[34],c[33])<<std::endl;
+    std::cout<<Form("      %s%s%s",v[37],v[34],v[33])<<std::endl;
+
+    std::cout<<std::endl;
+    std::cout<<"BOTTOM"<<std::endl;
+    std::cout<<Form("      %s%s%s",c[14],c[15],c[18])<<std::endl;
+    std::cout<<Form("      %s%s%s",v[14],v[15],v[18])<<std::endl;
+    std::cout<<Form("   %s%s%s%s",c[13],c[12],c[16],c[17])<<std::endl;
+    std::cout<<Form("   %s%s%s%s",v[13],v[12],v[16],v[17])<<std::endl;
+    std::cout<<Form("%s%s%s%s%s",c[4],c[5],c[11],c[10],c[9])<<std::endl;
+    std::cout<<Form("%s%s%s%s%s",v[4],v[5],v[11],v[10],v[9])<<std::endl;
+    std::cout<<Form("   %s%s%s%s",c[3],c[6],c[7],c[8])<<std::endl;
+    std::cout<<Form("   %s%s%s%s",v[3],v[6],v[7],v[8])<<std::endl;
+    std::cout<<Form("      %s%s%s",c[2],c[1],c[0])<<std::endl;
+    std::cout<<Form("      %s%s%s",v[2],v[1],v[0])<<std::endl;
+
+
+    std::cout<<std::endl;
+    std::cout<<"To visulalize, fold image in half horizonally, so that 37 is above 14 and 19 is above 02"<<std::endl;
+
+    // 
+
+    //       19    20    21
+    //      XXXX  XXXX  XXXX
+    //    27    26    25    22
+    //   XXXX  XXXX  XXXX  XXXX
+    // 28    29    30    24    23
+    //XXXX  XXXX  XXXX  XXXX  XXXX
+    //  36 35 31 32
+    //   37 34 33
+    
+    //   14 15 18
+    //  13 12 16 17
+    // 04 05 11 10 09
+    //  03 06 07 08
+    //    02 01 00
+
+    
+
+
+  }
   //________________________________________________________________________________________
   void EventDisplay::DrawLSVClusters() {
     for(size_t i=0;i<lsv_cluster_vec.size();i++) {

@@ -11,6 +11,9 @@
 #include "TCanvas.h"
 #include "TAxis.h"
 #include "TH1D.h"
+#include "TObjArray.h"
+#include "TMath.h"
+#include "TObjString.h"
 using namespace std;
 
 #include <fstream>
@@ -22,8 +25,8 @@ std::ifstream::pos_type filesize(const char* filename)
 
 int main(int argc, char* argv[]) {
   // Directory containing output files to be averaged should be the first argument
-  if (argc<4) {
-    cout<<"Usage: ./AverageWaveform <display_output_directory> <pulse_id> <pre_start_time> <post_start_time> <number_of_histogram_bins> <max_number_of_waveforms>"<<endl;
+  if (argc<8) {
+    cout<<"Usage: ./AverageWaveform <display_output_directory> <pulse_id> <pre_start_time> <post_start_time> <number_of_histogram_bins> <max_number_of_waveforms> <pre-pulse cut threshold>"<<endl;
     return 0;
   }
   char* dir = argv[1];
@@ -32,7 +35,10 @@ int main(int argc, char* argv[]) {
   double post_start_time = std::atof(argv[4]);
   int nbins = std::atof(argv[5]);
   int max_files = std::atof(argv[6]);
-  TString stringdir = dir;
+  double pre_pulse_threshold = std::atof(argv[7]);
+  TString stringpath = dir;
+  TObjArray* tobjarr_path = stringpath.Tokenize("/");
+  const TString stringdir = ((TObjString*)tobjarr_path->Last())->GetString();
   void* opendir = gSystem->OpenDirectory(dir);
   const char* fname;
   TChain* tpc_display_tree  = new TChain("display/tpc_display_tree");
@@ -43,7 +49,7 @@ int main(int argc, char* argv[]) {
       continue;
     if(!filename.EndsWith(".root"))
       continue;
-    TString filepath = stringdir+"/"+filename;
+    TString filepath = stringpath+"/"+filename;
     //    TFile* f = TFile::Open(filepath);
     if (filesize(filepath.Data())<1000) {
       cout<<filepath.Data()<<" is too small to contain any waveforms. Skipping..."<<endl;
@@ -91,7 +97,7 @@ int main(int argc, char* argv[]) {
   // int n;
   // double* x;
   // double* y;
-  
+  int N_waveforms = 0;
   for (int i=0; i<tpc_display_tree->GetEntries(); i++) {
     cout<<i<<"/"<<min((int)tpc_display_tree->GetEntries(),max_files)<<endl;
     tpc_display_tree->GetEntry(i);
@@ -136,14 +142,14 @@ int main(int argc, char* argv[]) {
     // Get alignment
     if (!tpc_pulse_tree->GetEntry(pulse_id)) continue;
     double average_start = start_us;
-    for (int j=0; j<n; j++) {
-      if (x[j]<start_us) continue;
-      if (abs(y[j])>0.5*abs(height)) { // Align by half maximum
-	average_start = x[j];
-	break;
-      }
-      if (x[j]>end_us) break;
-    }
+    // for (int j=0; j<n; j++) {
+    //   if (x[j]<start_us) continue;
+    //   if (abs(y[j])>0.5*abs(height)) { // Align by half maximum
+    // 	average_start = x[j];
+    // 	break;
+    //   }
+    //   if (x[j]>end_us) break;
+    // }
     
     // Skip events with a second pulse in the desired window
     bool skip = 0;
@@ -151,26 +157,41 @@ int main(int argc, char* argv[]) {
       tpc_pulse_tree->GetEntry(j);
       if (start_us<average_start+post_start_time) skip = 1;
     }
+
+    // Detect prepulse       
+    double prepulse_integral=0.;
+    for (int i=0; i<n; i++) {
+      if (x[i]<average_start-5) continue;
+      else if (x[i]>average_start-0.02) break;
+      else prepulse_integral+=fabs(y[i]);
+    }
+    cout<<"Prepulse integral (-5us to -20ns) "<<prepulse_integral<<endl;
+    if (prepulse_integral>pre_pulse_threshold) {
+      cout<<"Prepulse detected in "<<fname<<". Skipping..."<<endl;
+      skip=true; // Skip events with a pre-pulse
+    }
+
     if (skip) {
-      //      delete gr;
-      // delete x;
-      // delete y;
       continue;
     }
-    //    cout<<tpc_run_id<<" "<<tpc_event_id<<" "<<start_us<<endl;    
     // Add waveform
     int k=0; // iterator over averaged graph which goes from 0 to pre_start_time+post_start_time
     for (int j=0; k<N && j<n; j++) { // j<n prevents overflow of the individual graph
       if (x[j]<average_start-pre_start_time) continue;
-      Y[k] += -y[j]; // Invert graph from negative to positive
-      //if (k==100) cout<<Y[k]<<endl;
+      Y[k] += fabs(y[j]); // Invert graph from negative to positive
       k++;
     }
-     //    delete gr;
-    // delete x;
-    // delete y;
+    N_waveforms++;
+    // Look for prepulse
+    // Normalize integral to 1                                                                                                                              
+    // double s=0.;
+    // for (int i=0; i<n; i++) {
+    //   s+=y[i];
+    // }
+    // for (int i=0; i<n; i++) {
+    //   y[i]/=s;
+    // }
 
-      
   }
 
   // Errors
@@ -178,22 +199,51 @@ int main(int argc, char* argv[]) {
     eY[i]=sqrt(Y[i]);
   }
   
+  // Normalize by number of waveforms
+  for (int i=0; i<N; i++) {
+    Y[i]/=N_waveforms;
+    eY[i]/=N_waveforms;
+  }
+
+  // Make TGraph
+  TGraphErrors* tgr_N = new TGraphErrors(N, X, Y, eX, eY);
+  tgr_N->SetName("Graph_NormN");
+  tgr_N->Write();
+
+  // Make Histogram
+  TH1D* h_N = new TH1D("Histogram_NormN","Average Waveform",nbins,-pre_start_time,post_start_time);
+  for (int i=0; i<N; i++) h_N->Fill(X[i],Y[i]);
+  h_N->Write();
+
+  // Make Canvas
+  TCanvas* c_N = new TCanvas("Canvas_NormN","Canvas",1000,800);
+  tgr_N->Draw("al");
+  c_N->SetLogy();
+  tgr_N->GetYaxis()->SetRangeUser(1e-9,1.5*TMath::MaxElement(N,Y));
+  c_N->Write();
 
   // Normalize integral to 1
   double sum=0.;
-  for (int i=0; i<N; i++) {
-    sum+=Y[i];
+  for (int i=1; i<N; i++) {
+    sum+=Y[i]*(X[i]-X[i-1]);
   }
   for (int i=0; i<N; i++) {
     Y[i]/=sum;
     eY[i]/=sum;
   }
  
-  cout<<"Saving to "<<outname<<endl;
-
   // Make TGraph
   TGraphErrors* tgr = new TGraphErrors(N, X, Y, eX, eY);
   tgr->Write();
+
+  // Make Integral Graph
+  double iY[N];
+  iY[0] = 0;
+  for  (int i=1; i<N; i++) iY[i]=iY[i-1]+Y[i]*(X[i]-X[i-1]);
+  TGraph* tgr_I = new TGraph(N, X, iY);
+  tgr_I->SetName("Graph_Integral");
+  tgr_I->SetLineColor(kBlue);
+  tgr_I->Write();
 
   // Make Histogram
   TH1D* h = new TH1D("Histogram","Average Waveform",nbins,-pre_start_time,post_start_time);
@@ -204,10 +254,10 @@ int main(int argc, char* argv[]) {
   TCanvas* c = new TCanvas("Canvas","Canvas",1000,800);
   tgr->Draw("al");
   c->SetLogy();
-  tgr->GetYaxis()->SetRangeUser(1e-9,1e-1);
+  tgr->GetYaxis()->SetRangeUser(1e-9,1.5*TMath::MaxElement(N,Y));
   c->Write();
+  
+  cout<<"Saving to "<<outname<<endl;  
   fout->Close();
-  
-  
 
 }

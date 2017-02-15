@@ -81,6 +81,7 @@ namespace display {
     void ZoomAxisByLSVCluster(const char* det);
     void ZoomAxisByLSVROI(const char* det);
     void PrintTPCPulses();
+    void PrintTPCArray(double* a);
     void PrintLSVClusters();
     void PrintLSVROIs();
     void ColorByAxis(const char* det);      
