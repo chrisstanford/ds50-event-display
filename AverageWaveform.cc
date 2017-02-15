@@ -14,6 +14,7 @@
 #include "TObjArray.h"
 #include "TMath.h"
 #include "TObjString.h"
+
 using namespace std;
 
 #include <fstream>
@@ -142,14 +143,14 @@ int main(int argc, char* argv[]) {
     // Get alignment
     if (!tpc_pulse_tree->GetEntry(pulse_id)) continue;
     double average_start = start_us;
-    // for (int j=0; j<n; j++) {
-    //   if (x[j]<start_us) continue;
-    //   if (abs(y[j])>0.5*abs(height)) { // Align by half maximum
-    // 	average_start = x[j];
-    // 	break;
-    //   }
-    //   if (x[j]>end_us) break;
-    // }
+    for (int j=0; j<n; j++) {
+      if (x[j]<start_us) continue;
+      if (TMath::Abs(y[j])>0.5*TMath::Abs(height)) { // Align by half maximum
+	average_start = x[j];
+	break;
+      }
+      if (x[j]>end_us) break;
+    }
     
     // Skip events with a second pulse in the desired window
     bool skip = 0;
