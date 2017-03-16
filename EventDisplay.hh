@@ -157,6 +157,7 @@ namespace display {
       TGTextButton*       button_record;
       TGCheckButton*      check_box_log;
       TGCheckButton*      check_box_background;
+      TGCheckButton*      check_box_gradient;
       TGCheckButton*      check_box_seperate_files;
       TGTextEntry*        entry_filename;
     private:
@@ -289,7 +290,7 @@ namespace display {
     void CreateCanvas();
     void CreateGeometry();
     void CreateDetector(std::string detector);
-    void ColorByStartEnd(std::string detector, double start_t, double end_t, double max_integral_override=-1., bool draw_palette=true, Color_t background=kBlack);
+    void ColorByStartEnd(std::string detector, double start_t, double end_t, double max_integral_override=-1., bool draw_palette=true, Color_t background=kBlack, std::string gradient="rainbow");
     bool IsWaveformDrawn();
     bool IsWaveformDrawn(std::string detector);
     int  GetChannelIDFromMultigraphID(int mg_id, TMultiGraph* mg); // Channel id from graph at index mg_id in multigraph
@@ -309,7 +310,7 @@ namespace display {
     void SetIntegralGraph(TGraph* gr, double maxoverride=-1.); // Make integral for sum or channel
     void SetIntegralGraph(TGraph* gr, TMultiGraph* mg); // Make integral for allchannel using sum 
     bool MultiGraphContainsIntegral(TMultiGraph* mg); // check if multigraph contains an integral graph    
-    TEveRGBAPalette* MakePalette(Color_t background);
+    TEveRGBAPalette* MakePalette(Color_t background, std::string gradient);
     TEveGeoShape* MakePMT(std::string detector, int ch_id, double size);
   };
   

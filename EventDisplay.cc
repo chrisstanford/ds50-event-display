@@ -738,6 +738,10 @@ namespace display {
     check_box_background = new TGCheckButton(this,"Use white background");
     check_box_background->SetState(kButtonUp);
     AddFrame(check_box_background, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));    
+    // Use yellow gradient check box
+    check_box_gradient = new TGCheckButton(this,"Use yellow gradient");
+    check_box_gradient->SetState(kButtonUp);
+    AddFrame(check_box_gradient, new TGLayoutHints(kLHintsTop | kLHintsLeft,2,2,2,2));    
     // Save frames as seperate files check box
     check_box_seperate_files = new TGCheckButton(this,"Save frames as sererate files");
     check_box_seperate_files->SetState(kButtonUp);
@@ -1333,6 +1337,11 @@ namespace display {
       background = kWhite;
     else
       background = kBlack;
+    std::string gradient;
+    if (gif_frame->check_box_gradient->IsOn())
+      gradient = "yellow";
+    else
+      gradient = "rainbow";
     std::ostringstream filename_no_ext;
     filename_no_ext<<detector<<"_r"<<run_id<<"_e"<<event_id<<"_start"<<start_t<<"_end"<<end_t<<"_step"<<step_size<<"_window"<<window_size<<"_fps"<<fps;    
     std::string str_filename = gif_frame->entry_filename->GetText();
@@ -1351,7 +1360,7 @@ namespace display {
       else
 	filename_with_ext<<str_filename<<".gif+"<<frame_length;
       std::cout<<"Coloring from "<<start_t<<" to "<<start_t+window_size<<std::endl;
-      EventDisplay::ColorByStartEnd(detector,start_t,start_t+window_size,integral_max/*/5*/,false, background);
+      EventDisplay::ColorByStartEnd(detector,start_t,start_t+window_size,integral_max/*/5*/,false, background, gradient);
       EventDisplay::SavePicture(filename_with_ext.str().c_str());
     }
     std::cout<<"Complete! GIF saved as \n"<<filename_no_ext.str()<<".gif"<<std::endl;
@@ -1437,13 +1446,18 @@ namespace display {
       background = kWhite;
     else
       background = kBlack;
+    std::string gradient;
+    if (gif_frame->check_box_gradient->IsOn())
+      gradient = "yellow";
+    else
+      gradient = "rainbow";
     double start_t = EventDisplay::GetAxisValue("min");
     double end_t   = EventDisplay::GetAxisValue("max");
-    EventDisplay::ColorByStartEnd(detector, start_t, end_t, -1, false, background);
+    EventDisplay::ColorByStartEnd(detector, start_t, end_t, -1, false, background, gradient);
   }
 
   //________________________________________________________________________________________
-  void EventDisplay::ColorByStartEnd(std::string detector, double start_t, double end_t, double max_integral_override, bool draw_palette, Color_t background) {
+  void EventDisplay::ColorByStartEnd(std::string detector, double start_t, double end_t, double max_integral_override, bool draw_palette, Color_t background, std::string gradient) {
     if (detector=="tpc"&&!tpc_geo_enabled) return;
     if (detector=="lsv"&&!lsv_geo_enabled) return;
     if (detector=="wt" &&!wt_geo_enabled)  return;
@@ -1481,7 +1495,7 @@ namespace display {
     if (max_integral_override>0) 
       max_integral = max_integral_override; 
     // Set palette
-    TEveRGBAPalette* pal = EventDisplay::MakePalette(background);      
+    TEveRGBAPalette* pal = EventDisplay::MakePalette(background,gradient);
     // Get detector list
     TEveElementList* detector_list;
     if (detector=="tpc") detector_list = tpc_geometry; 
@@ -1673,10 +1687,14 @@ namespace display {
   }
 
   //________________________________________________________________________________________
-  TEveRGBAPalette* EventDisplay::MakePalette(Color_t background = kBlack) {
+  TEveRGBAPalette* EventDisplay::MakePalette(Color_t background = kBlack, std::string gradient = "rainbow") {
     TEveRGBAPalette *pal;
     if (background == kWhite) {
       GetDefaultGLViewer()->SetClearColor(kWhite);
+    } else { // black
+    GetDefaultGLViewer()->SetClearColor(kBlack);
+    }
+    if (gradient=="yellow") { // yellow
       const int NRGBs = 4;
       const int NCont = 100;
       double stops[NRGBs] = { 0.00, 0.40, 0.60, 1.00 };
@@ -1686,8 +1704,7 @@ namespace display {
       TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
       pal = new TEveRGBAPalette(0,100);
       return pal;
-    } else { // black
-    GetDefaultGLViewer()->SetClearColor(kBlack);
+    } else { // rainbow
       const int NRGBs = 6;
       const int NCont = 100;
       double stops[NRGBs] = { 0.00, 0.05, 0.34, 0.61, 0.84, 1.00 };
@@ -1697,6 +1714,7 @@ namespace display {
       TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
       pal = new TEveRGBAPalette(0,100);
     }
+
     return pal;
   }
 
