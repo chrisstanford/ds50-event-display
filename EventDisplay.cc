@@ -959,8 +959,8 @@ namespace display {
     double start_us = tpc_pulse_vec.at(selected)->start_us;
     double end_us = tpc_pulse_vec.at(selected)->end_us;
     if (prompt) {
-      start_us = tpc_pulse_vec.at(selected)->start_us;
-      end_us = tpc_pulse_vec.at(selected)->start_us+2;
+      start_us = tpc_pulse_vec.at(selected)->start_us-0.1;
+      end_us = tpc_pulse_vec.at(selected)->start_us+0.5;
     }
     EventDisplay::ZoomAxis(start_us,end_us);
   }
@@ -1017,16 +1017,18 @@ namespace display {
       //	std::cout<<obj_name<<std::endl;
       if (obj_name.find("mg_")!= std::string::npos) {
 	mg = (TMultiGraph*)gPad->GetPrimitive(obj_name.c_str());
-	int start_bin = mg->GetHistogram()->GetXaxis()->FindBin(start_t);
-	int end_bin = mg->GetHistogram()->GetXaxis()->FindBin(end_t);
-	mg->GetXaxis()->SetRange(start_bin,end_bin);
+	// int start_bin = mg->GetHistogram()->GetXaxis()->FindBin(start_t);
+	// int end_bin = mg->GetHistogram()->GetXaxis()->FindBin(end_t);
+	// //	mg->GetXaxis()->SetRange(start_bin,end_bin);
+	mg->GetXaxis()->SetLimits(start_t,end_t);
 	break;
       }
       if (obj_name.find("gr_")!= std::string::npos) {
 	gr = (TGraph*)gPad->GetPrimitive(obj_name.c_str());
-	int start_bin = gr->GetXaxis()->FindBin(start_t);
-	int end_bin = gr->GetXaxis()->FindBin(end_t);
-	gr->GetXaxis()->SetRange(start_bin,end_bin);
+	// int start_bin = gr->GetXaxis()->FindBin(start_t);
+	// int end_bin = gr->GetXaxis()->FindBin(end_t);
+	//	gr->GetXaxis()->SetRange(start_bin,end_bin);
+	gr->GetXaxis()->SetLimits(start_t,end_t);
 	break;
       }
     }
