@@ -12,7 +12,7 @@
 namespace display {
   class PMT : public TEveGeoShape {
   public:
-    PMT(std::string detector, int ch_id) : size(80.) {
+    PMT(std::string detector, int ch_id, double _size=80.) : size(_size) {
       if (detector=="lsv"||detector=="wt") {
 	fGSphere         = new TGeoSphere("fGSphere",0.,1.5*size,0.,180.);
 	fGScale          = new TGeoScale(1.,1.,0.5);
