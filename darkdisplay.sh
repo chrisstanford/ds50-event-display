@@ -51,6 +51,9 @@ current_directory="${PWD}";
 enabled_3d=""
 skip_display_channels=[]
 zero_baseline=true
+process_all=0 # process all events in the file
+loop_all=0 # loop over all events in the file even after finding the event
+
 # Get command line options
 while getopts "htor:e:c:f:d:-:" opt; do
     case "$opt" in
@@ -86,6 +89,10 @@ while getopts "htor:e:c:f:d:-:" opt; do
 		"skipchannels"*) skip_display_channels=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39]
 		    ;;
 		"realbaseline"*) zero_baseline=false
+		    ;;
+		"loop_all"*) loop_all=1
+		    ;;
+		"process_all"*) proccess_all=1
 	    esac
     esac
 done
@@ -129,7 +136,13 @@ fi
 
 # set output file names 
 od_display_output="${output_directory}od_display_output_r${run}_e${event}.root"
-tpc_display_output="${output_directory}tpc_display_output_r${run}_e${event}.root"
+if [ "$useV1724" = "true" ]; then
+    tpc_display_output="${output_directory}tpc_display_output_r${run}_e${event}_V1724.root"
+else 
+    tpc_display_output="${output_directory}tpc_display_output_r${run}_e${event}.root"
+fi
+
+
 
 # print output file locations
 printf "#################################\n"
@@ -202,7 +215,6 @@ if [ "$tpc_enabled" = "true" ]; then
     echo "Retrieving file list..."
     let mathfriendly=10#$FULLRUNNUM
     phases=( "commissioning" "calibration" "wimp_search" )
-    let mathfriendly=10#$FULLRUNNUM
     for phase in "${phases[@]}"
     do
 	echo "Searching in $phase"
@@ -224,6 +236,8 @@ if [ "$tpc_enabled" = "true" ]; then
             od_display_output : \"${od_display_output}\"\n\
             tpc_display_output : \"${tpc_display_output}\"\n\
             skip_display_channels : ${skip_display_channels}\n\
+            loop_all : ${loop_all}\n\
+            process_all : ${process_all}\n\
             zero_baseline: ${zero_baseline}\n"\
             >event_selection.fcl
 	art -c $tpcfcl xroot://fndca4a.fnal.gov:1094/pnfs/fnal.gov/usr/$tpcfile

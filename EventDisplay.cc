@@ -841,7 +841,7 @@ namespace display {
 	TGraph* gr = (TGraph*)(mg_sum->GetListOfGraphs()->First());
 	if (!gr) return;
 	EventDisplay::SetIntegralGraph(gr);
-	mg_sum->Add(wf_integral);
+	//	mg_sum->Add(wf_integral);
       }
       mg_sum->Draw("al");
     } else if (selected == display::channeltype::kAllChannel) {
@@ -849,7 +849,7 @@ namespace display {
 	TGraph* gr = (TGraph*)(mg_sum->GetListOfGraphs()->First());
 	if (!gr) return;
 	EventDisplay::SetIntegralGraph(gr,mg_chan);
-	mg_chan->Add(wf_integral);
+	//	mg_chan->Add(wf_integral);
       }
       mg_chan->Draw("al");
     } else {
@@ -1802,6 +1802,7 @@ namespace display {
 	}
 	EventDisplay::PrintTPCArray(ch_integrals); 
       } else {
+	std::cout<<"NChannels: "<<list_chan->GetSize()<<std::endl;
 	std::cout<<"Channels (arbitrary units)"<<std::endl;
 	for(int i=0;i<list_chan->GetSize();i++) {
 	  if (!list_chan->At(i)) continue;
