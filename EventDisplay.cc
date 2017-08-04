@@ -4,6 +4,11 @@
 namespace display {
   EventDisplay::EventDisplay(std::string filepath1, std::string filepath2, std::string option) :
     TEveManager(1024,768,kTRUE,option.c_str()),							    
+    canvas(NULL),
+    od_display_tree(NULL),
+    od_settings_tree(NULL),
+    tpc_display_tree(NULL),
+    tpc_settings_tree(NULL),
     tpc_enabled(false),
     lsv_enabled(false),
     wt_enabled(false),
@@ -38,6 +43,11 @@ namespace display {
 
   EventDisplay::EventDisplay(std::string directory, std::string option) :
     TEveManager(1024,768,kTRUE,option.c_str()),
+    canvas(NULL),
+    od_display_tree(NULL),
+    od_settings_tree(NULL),
+    tpc_display_tree(NULL),
+    tpc_settings_tree(NULL),
     tpc_enabled(false),
     lsv_enabled(false),
     wt_enabled(false),
@@ -87,7 +97,7 @@ namespace display {
       // f1->GetObject("display/tpc_settings_tree",t);
       // if (t) tpc_settings_tree = t;
       // f1->GetObject("display/tpc_display_tree",t);
-      // if (t) tpc_display_tree = t; 
+      // if (t) tpc_display_tree = t;
     }
     // Get OD tree
     if (od_filepath!="") {
@@ -99,7 +109,7 @@ namespace display {
       // f2->GetObject("display/od_settings_tree",t);
       // if (t) od_settings_tree = t;
       // f2->GetObject("display/od_display_tree",t);
-      // if (t) od_display_tree = t; 
+      // if (t) od_display_tree = t;
     }
     EventDisplay::SetBranchAddresses();
   }
@@ -183,6 +193,7 @@ namespace display {
       tpc_settings_tree->SetBranchAddress("tpc_enabled",    &tpc_enabled);
       tpc_settings_tree->SetBranchAddress("tpc_geo_enabled",&tpc_geo_enabled);
       tpc_settings_tree->GetEntry(0);
+
     }
     // Load TPC data
     if (tpc_display_tree) {
@@ -193,6 +204,7 @@ namespace display {
       tpc_display_tree->SetBranchAddress("tpc_pulse_tree", &tpc_pulse_tree);
       tpc_display_tree->SetBranchAddress("tpc_spe_tree",   &tpc_spe_tree);
     }
+    
     // Load OD settings
     if (od_settings_tree) {
       od_settings_tree->SetBranchAddress("lsv_enabled",    &lsv_enabled);
@@ -201,6 +213,7 @@ namespace display {
       od_settings_tree->SetBranchAddress("wt_geo_enabled", &wt_geo_enabled);
       od_settings_tree->GetEntry(0);
     }
+	  
     // Load OD data
     if (od_display_tree) {
       od_display_tree->SetBranchAddress("od_run_id",       &od_run_id);
@@ -663,6 +676,8 @@ namespace display {
     frame_zoom->AddFrame(button_zoom_axis,new TGLayoutHints(kLHintsLeft,2,2,2,2));
     frame_zoom->AddFrame(entry_region_number,new TGLayoutHints(kLHintsLeft,2,2,2,2));
     AddFrame(frame_zoom, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
+    check_box_prompt = new TGCheckButton(this,"Zoom to prompt");
+    AddFrame(check_box_prompt, new TGLayoutHints(kLHintsTop,2,2,2,2));
     // Print Cluster info
     button_print_info = new TGTextButton(this,"Print All Pulse Info");
     AddFrame(button_print_info, new TGLayoutHints(kLHintsTop,2,2,2,2));
@@ -928,6 +943,7 @@ namespace display {
   //________________________________________________________________________________________
   void EventDisplay::ZoomAxisByTPCPulse() {
     int selected = tpc_pulse_frame->entry_region_number->GetIntNumber();
+    bool prompt = tpc_pulse_frame->check_box_prompt->IsOn();
     // Check if active pad contains a tpc graph
     if (!(display::EventDisplay::GetDetectorInActivePad()=="tpc")) {
       std::cout<<"Active pad does not contain a TPC graph."<<std::endl;
@@ -941,7 +957,11 @@ namespace display {
     }
     // Get selected pulse bounds
     double start_us = tpc_pulse_vec.at(selected)->start_us;
-    double end_us = tpc_pulse_vec.at(selected)->end_us;      
+    double end_us = tpc_pulse_vec.at(selected)->end_us;
+    if (prompt) {
+      start_us = tpc_pulse_vec.at(selected)->start_us;
+      end_us = tpc_pulse_vec.at(selected)->start_us+2;
+    }
     EventDisplay::ZoomAxis(start_us,end_us);
   }
 
@@ -1230,7 +1250,9 @@ namespace display {
 	new display::PMT_positions(detector,ch);  
       if (p->GetPMTx()>10000) continue; // Channels with no corresponding pmt were given large coordinates
       TEveVector vec(p->GetPMTx(),p->GetPMTy(),p->GetPMTz());
-      PMT* pmt = new PMT(detector,ch);
+      PMT* pmt;
+      if (detector=="tpc") pmt = new PMT(detector,ch,80.);
+      else pmt = new PMT(detector,ch,80.);
       //	TEveGeoShape* pmtshape = pmt->GetShape();
       pmt->RefMainTrans().SetPos(vec);
       pmt->RefMainTrans().SetRotByAngles(p->GetPMTRotx(), p->GetPMTRoty(), p->GetPMTRotz());
@@ -1292,7 +1314,7 @@ namespace display {
   //________________________________________________________________________________________
   void EventDisplay::CreateMovieByAxis(const char* det) {
     std::string detector = det;
-    if (TPCorOD(detector)!=EventDisplay::GetDetectorInActivePad()) {
+    if (detector!=EventDisplay::GetDetectorInActivePad()) {
       std::cout<<"Requested detector is not drawn in current canvas."<<std::endl;
       return;
     }    
@@ -1519,9 +1541,12 @@ namespace display {
     double po_y; // detector dependent
     double width = 0.28;
     double height = 0.05;
-    if (detector=="tpc") {delete tpc_palette; po_y = 0.25;} 
-    if (detector=="lsv") {delete lsv_palette; po_y = 0.15;} 
-    if (detector=="wt")  {delete wt_palette;  po_y = 0.05;} 
+    if (detector=="tpc") {// delete tpc_palette; // causeing crash on root 6 for unknown reason
+      po_y = 0.25;} 
+    if (detector=="lsv") {// delete lsv_palette;
+      po_y = 0.15;} 
+    if (detector=="wt")  {// delete wt_palette;
+      po_y = 0.05;} 
     TEveRGBAPaletteOverlay* po = new TEveRGBAPaletteOverlay(pal, po_x, po_y, width, height);
     if (draw_palette) glv->AddOverlayElement(po);
     gEve->Redraw3D(kTRUE);

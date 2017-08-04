@@ -101,7 +101,7 @@ namespace display {
       //      TGCheckButton*      check_multi;
       TGLabel*            label_combine_channels;
       TGTextEntry*          entry_combine_channels;
-      ClassDef(WaveformFrame,1);
+      //      ClassDef(WaveformFrame,1); // Comment out for ROOT 6.x
     };
     class TPCPulseFrame : public TGGroupFrame {
     public:
@@ -109,6 +109,7 @@ namespace display {
       TGCheckButton*      check_box;
       TGTextButton*       button_zoom_axis;
       TGNumberEntry*      entry_region_number;
+      TGCheckButton*      check_box_prompt;
       TGTextButton*       button_print_info;
     };
     class TPCSPEFrame : public TGGroupFrame {
