@@ -31,7 +31,9 @@ namespace display {
     tpc_pulse_tree(0),
     tpc_spe_tree(0),
     axis_min(0.),
-    axis_max(0.)
+    axis_max(0.),
+    wf_min(0.),
+    wf_max(0.)
   {
     if (option.find("V") != std::string::npos) enabled_3d = true;
     else enabled_3d = false;
@@ -70,7 +72,9 @@ namespace display {
     tpc_pulse_tree(0),
     tpc_spe_tree(0),
     axis_min(0.),
-    axis_max(0.)
+    axis_max(0.),
+    wf_min(0.),
+    wf_max(0.)
   {
     LoadDirectory(directory);
     if (option.find("V") != std::string::npos) enabled_3d = true;
@@ -463,6 +467,7 @@ namespace display {
     TPCPulseFrame* pulse_frame = new TPCPulseFrame(comp_frame);
     pulse_frame->button_print_info->Connect("Clicked()","display::EventDisplay",this,"PrintTPCPulses()");
     pulse_frame->button_zoom_axis->Connect("Clicked()","display::EventDisplay",this,"ZoomAxisByTPCPulse()");
+    pulse_frame->button_unzoom->Connect("Clicked()","display::EventDisplay",this,"Unzoom()");
     comp_frame->AddFrame(pulse_frame, new TGLayoutHints(kLHintsTop | kLHintsExpandX));
     // TPC SPE frame
     TPCSPEFrame* spe_frame = new TPCSPEFrame(comp_frame);
@@ -678,6 +683,8 @@ namespace display {
     AddFrame(frame_zoom, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
     check_box_prompt = new TGCheckButton(this,"Zoom to prompt");
     AddFrame(check_box_prompt, new TGLayoutHints(kLHintsTop,2,2,2,2));
+    button_unzoom = new TGTextButton(this,"Unzoom");
+    AddFrame(button_unzoom, new TGLayoutHints(kLHintsTop,2,2,2,2));
     // Print Cluster info
     button_print_info = new TGTextButton(this,"Print All Pulse Info");
     AddFrame(button_print_info, new TGLayoutHints(kLHintsTop,2,2,2,2));
@@ -696,6 +703,8 @@ namespace display {
     frame_zoom->AddFrame(button_zoom_axis,new TGLayoutHints(kLHintsLeft,2,2,2,2));
     frame_zoom->AddFrame(entry_region_number,new TGLayoutHints(kLHintsLeft,2,2,2,2));
     AddFrame(frame_zoom, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
+    button_unzoom = new TGTextButton(this,"Unzoom");
+    AddFrame(button_unzoom, new TGLayoutHints(kLHintsTop,2,2,2,2));
     // Print Cluster info
     button_print_info = new TGTextButton(this,"Print All Cluster Info");
     AddFrame(button_print_info, new TGLayoutHints(kLHintsTop,2,2,2,2));
@@ -714,6 +723,8 @@ namespace display {
     frame_zoom->AddFrame(button_zoom_axis,new TGLayoutHints(kLHintsLeft,2,2,2,2));
     frame_zoom->AddFrame(entry_region_number,new TGLayoutHints(kLHintsLeft,2,2,2,2));
     AddFrame(frame_zoom, new TGLayoutHints(kLHintsTop | kLHintsExpandX,0,2,2,0));
+    button_unzoom = new TGTextButton(this,"Unzoom");
+    AddFrame(button_unzoom, new TGLayoutHints(kLHintsTop,2,2,2,2));
     // Print ROI info
     button_print_info = new TGTextButton(this,"Print All ROI Info");
     AddFrame(button_print_info, new TGLayoutHints(kLHintsTop,2,2,2,2));
@@ -841,6 +852,8 @@ namespace display {
 	if (!gr) {std::cout<<"No graph was found for channel "<<ch_id<<"."<<std::endl; continue;}
 	newtitle += ch_id;
 	newtitle += ",";
+	wf_min = gr->GetX()[0];
+	wf_max = gr->GetX()[gr->GetN()-1];
 	mg->Add(gr);
       }
       if (!mg->GetListOfGraphs()) {std::cout<<"No graphs were found for specified channels."<<std::endl;c->Update();return;}
@@ -855,6 +868,8 @@ namespace display {
       if (input=="tpc" && !EventDisplay::MultiGraphContainsIntegral(mg_sum)) { // add integral 
 	TGraph* gr = (TGraph*)(mg_sum->GetListOfGraphs()->First());
 	if (!gr) return;
+	wf_min = gr->GetX()[0];
+	wf_max = gr->GetX()[gr->GetN()-1];
 	EventDisplay::SetIntegralGraph(gr);
 	//	mg_sum->Add(wf_integral);
       }
@@ -863,18 +878,24 @@ namespace display {
       if (input=="tpc" && !EventDisplay::MultiGraphContainsIntegral(mg_chan)) { // add integral
 	TGraph* gr = (TGraph*)(mg_sum->GetListOfGraphs()->First());
 	if (!gr) return;
+	wf_min = gr->GetX()[0];
+	wf_max = gr->GetX()[gr->GetN()-1];
 	EventDisplay::SetIntegralGraph(gr,mg_chan);
 	//	mg_chan->Add(wf_integral);
       }
       mg_chan->Draw("al");
     } else {
       TGraph* gr = (TGraph*)(mg_chan->GetListOfGraphs()->At(selected));
+      if (!gr) return;
+      wf_min = gr->GetX()[0];
+      wf_max = gr->GetX()[gr->GetN()-1];
       gr->Draw("al");
     }
     std::string new_det = EventDisplay::GetDetectorInActivePad();
     // Zoom new graph to previously set limits, if any
     ///    EventDisplay::SetAxisLimits(start_t,end_t);
-    if (is_drawn && prev_det==new_det) EventDisplay::ZoomAxis(axis_min,axis_max);
+    //    if (is_drawn && prev_det==new_det) EventDisplay::ZoomAxis(axis_min,axis_max);
+    if (is_drawn && prev_det==new_det) EventDisplay::SetAxisLimits(axis_min,axis_max);
     // Set axis limits 
     axis_min = EventDisplay::GetAxisValue("min");
     axis_max = EventDisplay::GetAxisValue("max");
@@ -962,7 +983,7 @@ namespace display {
       start_us = tpc_pulse_vec.at(selected)->start_us-0.1;
       end_us = tpc_pulse_vec.at(selected)->start_us+0.5;
     }
-    EventDisplay::ZoomAxis(start_us,end_us);
+    EventDisplay::SetAxisLimits(start_us,end_us);
   }
 
   //________________________________________________________________________________________
@@ -985,7 +1006,7 @@ namespace display {
     // Get selected cluster bounds
     double start_ns = lsv_cluster_vec.at(selected)->start_ns;
     double end_ns = lsv_cluster_vec.at(selected)->end_ns;      
-    EventDisplay::ZoomAxis(start_ns,end_ns);
+    EventDisplay::SetAxisLimits(start_ns,end_ns);
   }
 
   //________________________________________________________________________________________
@@ -1003,7 +1024,7 @@ namespace display {
     // Get selected roi bounds
     double start_ns = lsv_roi_vec.at(selected)->start_ns;
     double end_ns = lsv_roi_vec.at(selected)->end_ns;      
-    EventDisplay::ZoomAxis(start_ns,end_ns);
+    EventDisplay::SetAxisLimits(start_ns,end_ns);
   }
 
   //________________________________________________________________________________________     
@@ -1017,18 +1038,16 @@ namespace display {
       //	std::cout<<obj_name<<std::endl;
       if (obj_name.find("mg_")!= std::string::npos) {
 	mg = (TMultiGraph*)gPad->GetPrimitive(obj_name.c_str());
-	// int start_bin = mg->GetHistogram()->GetXaxis()->FindBin(start_t);
-	// int end_bin = mg->GetHistogram()->GetXaxis()->FindBin(end_t);
-	// //	mg->GetXaxis()->SetRange(start_bin,end_bin);
-	mg->GetXaxis()->SetLimits(start_t,end_t);
+	int start_bin = mg->GetHistogram()->GetXaxis()->FindBin(start_t);
+	int end_bin = mg->GetHistogram()->GetXaxis()->FindBin(end_t);
+	mg->GetXaxis()->SetRange(start_bin,end_bin);
 	break;
       }
       if (obj_name.find("gr_")!= std::string::npos) {
 	gr = (TGraph*)gPad->GetPrimitive(obj_name.c_str());
-	// int start_bin = gr->GetXaxis()->FindBin(start_t);
-	// int end_bin = gr->GetXaxis()->FindBin(end_t);
-	//	gr->GetXaxis()->SetRange(start_bin,end_bin);
-	gr->GetXaxis()->SetLimits(start_t,end_t);
+	int start_bin = gr->GetXaxis()->FindBin(start_t);
+	int end_bin = gr->GetXaxis()->FindBin(end_t);
+	gr->GetXaxis()->SetRange(start_bin,end_bin);
 	break;
       }
     }
@@ -1036,6 +1055,11 @@ namespace display {
     gPad->Update();
   }
 
+  //________________________________________________________________________________________     
+  void EventDisplay::Unzoom() {
+    EventDisplay::SetAxisLimits(wf_min,wf_max);
+  }
+  
   //________________________________________________________________________________________     
   void EventDisplay::SetAxisLimits(double start_t,double end_t) {
     // Find the graph in the active canvas
@@ -1047,11 +1071,13 @@ namespace display {
       //	std::cout<<obj_name<<std::endl;
       if (obj_name.find("mg_")!= std::string::npos) {
 	mg = (TMultiGraph*)gPad->GetPrimitive(obj_name.c_str());
+	std::cout<<"Setting axis limits: "<<start_t<<" "<<end_t<<std::endl;
 	mg->GetXaxis()->SetLimits(start_t,end_t);
 	break;
       }
       if (obj_name.find("gr_")!= std::string::npos) {
 	gr = (TGraph*)gPad->GetPrimitive(obj_name.c_str());
+	std::cout<<"Setting axis limits: "<<start_t<<" "<<end_t<<std::endl;
 	gr->GetXaxis()->SetLimits(start_t,end_t);
 	break;
       }

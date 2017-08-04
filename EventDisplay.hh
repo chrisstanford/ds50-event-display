@@ -80,6 +80,7 @@ namespace display {
     void ZoomAxisByTPCPulse();
     void ZoomAxisByLSVCluster(const char* det);
     void ZoomAxisByLSVROI(const char* det);
+    void Unzoom();
     void PrintTPCPulses();
     void PrintTPCArray(double* a);
     void PrintLSVClusters();
@@ -110,6 +111,7 @@ namespace display {
       TGTextButton*       button_zoom_axis;
       TGNumberEntry*      entry_region_number;
       TGCheckButton*      check_box_prompt;
+      TGTextButton*       button_unzoom;
       TGTextButton*       button_print_info;
     };
     class TPCSPEFrame : public TGGroupFrame {
@@ -126,6 +128,7 @@ namespace display {
       TGCheckButton*      check_box;
       TGTextButton*       button_zoom_axis;
       TGNumberEntry*      entry_region_number;
+      TGTextButton*       button_unzoom;
       TGTextButton*       button_print_info;
     };
     class LSVROIFrame : public TGGroupFrame {
@@ -134,6 +137,7 @@ namespace display {
       TGCheckButton*      check_box;
       TGTextButton*       button_zoom_axis;
       TGNumberEntry*      entry_region_number;
+      TGTextButton*       button_unzoom;
       TGTextButton*       button_print_info;
     };
     class EventSelectionFrame : public TGGroupFrame {
@@ -270,6 +274,9 @@ namespace display {
 
     double axis_min;
     double axis_max;
+      
+    double wf_min;
+    double wf_max;
       
     void LoadFile(std::string, std::string); 
     void LoadDirectory(std::string directory); 
